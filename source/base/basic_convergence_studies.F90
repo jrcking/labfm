@@ -173,7 +173,7 @@ v(i)=lap(i)
     do i=1,npfb
        do k=1,ij_count(i)
           j=ij_link(i,k)
-          temp = -ij_w_lap(i,k)
+          temp = -ij_w_grad(i,k,1)
           if(i.ne.j)then
              dm(i,i) = dm(i,i) + temp
              if(j.gt.npfb+nb_n)then    ! If j is mirror, then

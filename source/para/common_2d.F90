@@ -32,7 +32,7 @@ module common_2d
   real(rkind),dimension(:),allocatable :: hqw     !! Hopkins quadrature weights
 
   !! Parents and boundaries...
-  integer(ikind),dimension(:),allocatable :: irelation,ibtype,vrelation
+  integer(ikind),dimension(:),allocatable :: irelation,ibtype
 
   integer :: n_threads   !! Parallelisation!!
 

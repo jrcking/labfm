@@ -15,13 +15,13 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 5!! 1/2 the initial resolution
+  nx = 20!! 1/2 the initial resolution
   do k=1,16
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
 
-     call create_particles_banalytic
-!     call create_particles_bperiodic
+!     call create_particles_banalytic
+     call create_particles_bperiodic
 !     call create_particles_bperiodic_varh
 
      !! Build the neighbour lists
@@ -37,11 +37,11 @@ program labfm
 
      !! Call subroutine to do whatever test we choose...
 !     call gradient_convergence_test
-     call laplacian_convergence_test
+!     call laplacian_convergence_test
 !     call freq_response_test             !! Set nx=~80 and comment out nx=nx*2 above
 !     call filter_test
 !     call vortex_resolve_test
-!     call stability_test
+     call stability_test
 !     call solve_burgers_equation
 
      call output_uv(k)
@@ -50,11 +50,11 @@ program labfm
      deallocate(rp,u);if(allocated(v)) deallocate(v);if(allocated(w)) deallocate(w)
      deallocate(h)
      deallocate(ij_count,ij_link);if(allocated(irelation)) deallocate(irelation)
-     if(allocated(vrelation)) deallocate(vrelation)
      if(allocated(ibtype)) deallocate(ibtype)
      if(allocated(ij_w_grad)) deallocate(ij_w_grad,ij_w_lap,ij_w_hyp)
      if(allocated(filter_coeff)) deallocate(filter_coeff)
      if(allocated(hqw)) deallocate(hqw)
+stop
   end do
 
   close(1)
@@ -76,7 +76,7 @@ subroutine initial_setup
   lambda = (xmax - xmin)!/8.0d0
 
   !! Particles per smoothing length and supportsize/h
-  hovdx = 2.7;hovdx_av=hovdx
+  hovdx = 2.4;hovdx_av=hovdx
   
   !! For asymmetric stencils
   hovdx_max = hovdx
