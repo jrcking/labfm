@@ -13,7 +13,7 @@ contains
 !! ftype 6 - Re-entrant corner problem for Laplace eqn...
 !! ftype 7 - exponential peak problem for Poisson 
 !! ftype 8 - Oscillatory for Helmholtz...
-#define ftype 1
+#define ftype 2
 !! ------------------------------------------------------------------------------------------------
 #if ftype==1
   function ftn(x,y) result(tmp)

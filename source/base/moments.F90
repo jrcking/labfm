@@ -74,7 +74,7 @@ contains
      allocate(rvec(nsizeG));rvec=0.0d0
 
      !! No parallelism for individual linear system solving...
-     call openblas_set_num_threads(1)
+!     call openblas_set_num_threads(1)
 
      cnum = 0.0d0
      !$OMP PARALLEL DO PRIVATE(nsize,amatGx,amathyp,k,j,rij,rad,qq,x,y,xx,yy, &
@@ -85,6 +85,7 @@ contains
         nsize = nsizeG
         amatGx=0.0d0
         hh=h(i)
+                
         do k=1,ij_count(i)
            j = ij_link(i,k) 
            rij(:) = rp(i,:) - rp(j,:)         
@@ -162,20 +163,22 @@ contains
         amatGy = amatGx;amatL=amatGx;amathyp = amatGx !! copying LHS
         
         !! Build RHS for ddx and ddy
-        bvecGx=0.0d0;bvecGx(1)=1.0d0/hh       
+        bvecGx=0.0d0;bvecGx(1)=1.0d0/hh                      
         bvecGy=0.0d0;bvecGy(2)=1.0d0/hh             
         
         !! Solve system for grad coefficients
         i1=0;i2=0                       
-        call dgesv(nsize,1,amatGx,nsize,i1,bvecGx,nsize,i2)   
-!        call svd_solve(amatGx,nsize,bvecGx)       
-        i1=0;i2=0;nsize=nsizeG    
-        call dgesv(nsize,1,amatGy,nsize,i1,bvecGy,nsize,i2)    
+!        call dgesv(nsize,1,amatGx,nsize,i1,bvecGx,nsize,i2)   
+        call svd_solve(amatGx,nsize,bvecGx)       
 
+        i1=0;i2=0;nsize=nsizeG    
+!        call dgesv(nsize,1,amatGy,nsize,i1,bvecGy,nsize,i2)    
+        call svd_solve(amatGy,nsize,bvecGy)       
 
         !! Solve system for Lap coefficients
         bvecL(:)=0.0d0;bvecL(3)=1.0d0/hh/hh;bvecL(5)=1.0d0/hh/hh;i1=0;i2=0;nsize=nsizeG
-        call dgesv(nsize,1,amatL,nsize,i1,bvecL,nsize,i2)
+!        call dgesv(nsize,1,amatL,nsize,i1,bvecL,nsize,i2)
+        call svd_solve(amatL,nsize,bvecL)
         
         !! Solve system for Hyperviscosity (regular viscosity if ORDER<4)
 #if order<=3
@@ -196,7 +199,8 @@ contains
         bvechyp(:)=bvechyp(:)/hh/hh/hh/hh/hh/hh/hh/hh/hh/hh
 #endif
         i1=0;i2=0;nsize=nsizeG 
-        call dgesv(nsize,1,amathyp,nsize,i1,bvechyp,nsize,i2)        
+!        call dgesv(nsize,1,amathyp,nsize,i1,bvechyp,nsize,i2)   
+        call svd_solve(amathyp,nsize,bvechyp)             
         
         !! Another loop of neighbours to calculate interparticle weights
         do k=1,ij_count(i)
@@ -267,7 +271,7 @@ contains
            ij_w_hyp(i,k) = dot_product(bvechyp,gvec)             
 
         end do
-        write(2,*) ""  !! Temporary fix for a weird openblas/lapack/openmp bug 
+!        write(2,*) ""  !! Temporary fix for a weird openblas/lapack/openmp bug 
         !! The bug may be due to a race condition or something, but not really sure
         !! writing nothing to fort.2 ( I guess) is akin to a pause. Discovered by trial
         !! and error. Results in a big fort.2 file, and should probably find a proper solution 
