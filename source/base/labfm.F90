@@ -16,7 +16,7 @@ program labfm
 
   !! Loop over a range of resolutions
   nx = 5!! 1/2 the initial resolution
-  do k=1,16
+  do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
 
@@ -36,8 +36,8 @@ program labfm
 !     call filter_coefficients
 
      !! Call subroutine to do whatever test we choose...
-!     call gradient_convergence_test
-     call laplacian_convergence_test
+     call gradient_convergence_test
+!     call laplacian_convergence_test
 !     call freq_response_test             !! Set nx=~80 and comment out nx=nx*2 above
 !     call filter_test
 !     call vortex_resolve_test
@@ -73,17 +73,48 @@ subroutine initial_setup
   time = 0.0d0
   
   !! Characteristic length scale...
-  lambda = (xmax - xmin)!/8.0d0
+  lambda = (xmax - xmin)*1.0d0
 
-  !! Particles per smoothing length and supportsize/h
-  hovdx = 2.7;hovdx_av=hovdx
+  !! Particles per smoothing length (depends on order)
+#if order==2
+  hovdx = 1.2d0  
+#elif order==3
+  hovdx = 1.4d0
+#elif order==4
+  hovdx = 1.7d0
+#elif order==5
+  hovdx = 2.0d0
+#elif order==6
+  hovdx = 2.2d0
+#elif order==7
+  hovdx = 2.4d0
+#elif order==8
+  hovdx = 2.7d0
+#elif order==9
+  hovdx = 2.9d0
+#elif order==10
+  hovdx = 3.1d0
+#elif order==11
+  hovdx = 3.4d0
+#elif order==12
+  hovdx = 3.7d0
+#else
+  write(6,*) "Compiled with no order specified. Stopping"
+  Stop
+#endif
+
   
-  !! For asymmetric stencils
+  !! For asymmetric stencils these three lines are modified
+  hovdx_av=hovdx  
   hovdx_max = hovdx
   hovdx_min = hovdx!2.0d0
+  
+  !! Stencil size 
   ss = 2.0
   nplink = 4.0*ss*ss*hovdx*hovdx  !! nplink allows for square stencil with side length 2*ss
-  tmp_noise = 0.5 !! How noisy!!
+
+  !! Level of noise in node distribution
+  tmp_noise = 0.5d0!0.5d0 
   
   !! A Reynolds number?? (also parameter for some Poisson stuff)
   Re=1.0d1

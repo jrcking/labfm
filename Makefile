@@ -3,6 +3,11 @@ LD := gfortran
 FFLAGS :=-fopenmp -fbounds-check -ffpe-trap=zero -O3 -Wall -g -J./obj -I./obj -m64
 LDFLAGS := -fopenmp -lstdc++ -m64 -lopenblas
 
+## libopenblas is required for this code.
+
+ifeq ($(ob),1)
+FFLAGS += -Dob
+endif
 
 ## specify order between 2 and 12
 ifeq ($(order),2)

@@ -24,8 +24,7 @@ contains
      l2_x=0.0d0;l2_y=0.0d0;e2_x=0.0d0;e2_y=0.0d0
      !$OMP PARALLEL DO REDUCTION(+:l2_x,l2_y,e2_x,e2_y) PRIVATE(tmp,x,y,tmp2)
      do i=1,npfb
-        x = rp(i,1)
-        y=rp(i,2)
+        x = rp(i,1);y = rp(i,2)
         !! Calculate the L2 norms
         tmp2 = dfdx(x,y);tmp = grad(i,1) - tmp2 
         l2_x = l2_x + tmp*tmp

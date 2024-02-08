@@ -24,8 +24,8 @@ contains
      real(rkind),dimension(:),allocatable :: xvec,bvecGx,bvecGy,bvecL,bvechyp
      integer(ikind),dimension(:),allocatable :: ipiv
      integer(ikind) :: i1,i2,nsize,nsizeG
-     real(rkind) :: ff1,hh,xs,ys
-     real(rkind) :: cplx,ic
+     real(rkind) :: ff1,hh,xs,ys,hyp_scaling
+     real(rkind) :: ic,res1,res2
      
      real(rkind),dimension(27*4) :: work
      integer(ikind),dimension(27) :: iwork
@@ -73,14 +73,18 @@ contains
      allocate(ipiv(nsizeG));ipiv=0
      allocate(rvec(nsizeG));rvec=0.0d0
 
+#ifdef ob
      !! No parallelism for individual linear system solving...
-!     call openblas_set_num_threads(1)
+     call openblas_set_num_threads(1)
+#endif
 
      cnum = 0.0d0
+     res1=zero
+     res2=zero
      !$OMP PARALLEL DO PRIVATE(nsize,amatGx,amathyp,k,j,rij,rad,qq,x,y,xx,yy, &
-     !$OMP ff1,gvec,xvec,i1,i2,amatL,amatGy,bvecGx,bvecGy,bvecL,bvechyp,hh,xs,ys, &
+     !$OMP ff1,gvec,xvec,i1,i2,amatL,amatGy,bvecGx,bvecGy,bvecL,bvechyp,hh,xs,ys,hyp_scaling, &
      !$omp work,iwork,ipiv,rvec) &
-     !$OMP reduction(+:cnum)
+     !$OMP reduction(+:cnum,res1,res2)
      do i=1,npfb
         nsize = nsizeG
         amatGx=0.0d0
@@ -163,45 +167,57 @@ contains
         amatGy = amatGx;amatL=amatGx;amathyp = amatGx !! copying LHS
         
         !! Build RHS for ddx and ddy
-        bvecGx=0.0d0;bvecGx(1)=1.0d0/hh                      
-        bvecGy=0.0d0;bvecGy(2)=1.0d0/hh             
+        bvecGx=0.0d0;bvecGx(1)=1.0d0!/hh                      
+        bvecGy=0.0d0;bvecGy(2)=1.0d0!/hh             
         
         !! Solve system for grad coefficients
         i1=0;i2=0                       
-!        call dgesv(nsize,1,amatGx,nsize,i1,bvecGx,nsize,i2)   
+#ifdef ob
+        call dgesv(nsize,1,amatGx,nsize,i1,bvecGx,nsize,i2)   
+#else        
         call svd_solve(amatGx,nsize,bvecGx)       
+#endif        
 
         i1=0;i2=0;nsize=nsizeG    
-!        call dgesv(nsize,1,amatGy,nsize,i1,bvecGy,nsize,i2)    
+#ifdef ob
+        call dgesv(nsize,1,amatGy,nsize,i1,bvecGy,nsize,i2)    
+#else        
         call svd_solve(amatGy,nsize,bvecGy)       
+#endif
+
 
         !! Solve system for Lap coefficients
-        bvecL(:)=0.0d0;bvecL(3)=1.0d0/hh/hh;bvecL(5)=1.0d0/hh/hh;i1=0;i2=0;nsize=nsizeG
-!        call dgesv(nsize,1,amatL,nsize,i1,bvecL,nsize,i2)
+        bvecL(:)=0.0d0;bvecL(3)=1.0d0;bvecL(5)=1.0d0;i1=0;i2=0;nsize=nsizeG
+#ifdef ob
+        call dgesv(nsize,1,amatL,nsize,i1,bvecL,nsize,i2)
+#else        
         call svd_solve(amatL,nsize,bvecL)
+#endif        
         
         !! Solve system for Hyperviscosity (regular viscosity if ORDER<4)
 #if order<=3
         bvechyp(:)=0.0d0;bvechyp(3)=1.0d0;bvechyp(5)=1.0d0
-        bvechyp(:) = bvechyp(:)/hh/hh
+        hyp_scaling = one/hh/hh
 #elif order<=5
         bvechyp(:)=0.0d0;bvechyp(10)=-1.0d0;bvechyp(12)=-2.0d0;bvechyp(14)=-1.0d0
-        bvechyp(:) = bvechyp(:)/hh/hh/hh/hh
+        hyp_scaling = one/hh/hh/hh/hh
 #elif order<=7
         bvechyp(:)=0.0d0;bvechyp(21)=1.0d0;bvechyp(23)=3.0d0;bvechyp(25)=3.0d0;bvechyp(27)=1.0d0
-        bvechyp(:)=bvechyp(:)/hh/hh/hh/hh/hh/hh
+        hyp_scaling = one/hh/hh/hh/hh/hh/hh        
 #elif order<=9
         bvechyp(:)=0.0d0;bvechyp(36)=-1.0d0;bvechyp(38)=-4.0d0;bvechyp(40)=-6.0d0;bvechyp(42)=-4.0d0;bvechyp(44)=-1.0d0
-        bvechyp(:)=bvechyp(:)/hh/hh/hh/hh/hh/hh/hh/hh
+        hyp_scaling = one/hh/hh/hh/hh/hh/hh/hh/hh        
 #else        
         bvechyp(:)=0.0d0;bvechyp(55)=1.0d0;bvechyp(57)=5.0d0;bvechyp(59)=10.0d0;bvechyp(61)=10.0d0
         bvechyp(63)=5.0d0;bvechyp(65)=1.0d0
-        bvechyp(:)=bvechyp(:)/hh/hh/hh/hh/hh/hh/hh/hh/hh/hh
+        hyp_scaling = one/hh/hh/hh/hh/hh/hh/hh/hh/hh/hh                
 #endif
         i1=0;i2=0;nsize=nsizeG 
-!        call dgesv(nsize,1,amathyp,nsize,i1,bvechyp,nsize,i2)   
+#ifdef ob        
+        call dgesv(nsize,1,amathyp,nsize,i1,bvechyp,nsize,i2)   
+#else        
         call svd_solve(amathyp,nsize,bvechyp)             
-        
+#endif        
         !! Another loop of neighbours to calculate interparticle weights
         do k=1,ij_count(i)
            j = ij_link(i,k) 
@@ -265,20 +281,22 @@ contains
 #endif 
 
            !! Weights for operators        
-           ij_w_grad(i,k,1) = dot_product(bvecGx,gvec)
-           ij_w_grad(i,k,2) = dot_product(bvecGy,gvec)
-           ij_w_lap(i,k) = dot_product(bvecL,gvec)  
-           ij_w_hyp(i,k) = dot_product(bvechyp,gvec)             
-
+           ij_w_grad(i,k,1) = dot_product(bvecGx,gvec)/hh
+           ij_w_grad(i,k,2) = dot_product(bvecGy,gvec)/hh
+           ij_w_lap(i,k) = dot_product(bvecL,gvec)/hh/hh 
+           ij_w_hyp(i,k) = dot_product(bvechyp,gvec)*hyp_scaling             
         end do
-!        write(2,*) ""  !! Temporary fix for a weird openblas/lapack/openmp bug 
+#ifdef ob        
+        write(2,*) ""  !! Temporary fix for a weird openblas/lapack/openmp bug 
         !! The bug may be due to a race condition or something, but not really sure
         !! writing nothing to fort.2 ( I guess) is akin to a pause. Discovered by trial
         !! and error. Results in a big fort.2 file, and should probably find a proper solution 
         !! sometime.
+#endif        
+
      end do
      !$OMP END PARALLEL DO
-          
+         
          
 !     write(6,*) 1.0d0/(cnum/dble(npfb))
 
