@@ -4,7 +4,8 @@ The Local Anisotropic Basis Function Method.
 This toy code was used for the simple convergence studies and stability analysis in
   - King, Lind & Nasar (2020) JCP 415:109549
   - Kind & Lind (2022) JCP 449:110760
-Please cite these if publishing based on this code.
+
+Please cite the above if publishing based on this code.
 
 Compiler options:
  - order = 2,3,4,5,6,7,...12 to set the order of LABFM
