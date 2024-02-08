@@ -1,5 +1,9 @@
 # LABFM
-The Local Anisotropic Basis Function Method.
+**The Local Anisotropic Basis Function Method**
+
+**Dr Jack King**
+
+*School of Engineering, University of Manchester*
 
 This toy code was used for the simple convergence studies and stability analysis in
   - King, Lind & Nasar (2020) JCP 415:109549
