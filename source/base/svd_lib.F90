@@ -164,7 +164,7 @@ contains
     nm = 1   !! Loop over singular values
     do kc = nsize,1,-1
        !! Loop over allowed iterations
-       do its = 1,30
+       do its = 1,30  !30
           do lc = kc,1,-1
              !! Test for splitting
              nm = lc-1

@@ -20,8 +20,8 @@ program labfm
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
 
-     call create_particles_banalytic
-!     call create_particles_bperiodic
+!     call create_particles_banalytic
+     call create_particles_bperiodic
 !     call create_particles_bperiodic_varh
 
      !! Build the neighbour lists

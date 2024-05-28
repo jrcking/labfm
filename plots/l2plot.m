@@ -23,7 +23,7 @@ set(gca,'ytick',[1e-15 1e-12 1e-9 1e-6 1e-3 1 1e3])
 
 set(gca,'Fontsize',18)
 set(gca,'Fontname','Times')
-xlabel('h/H');ylabel('L_{2} norm');
+xlabel('s/H');ylabel('L_{2} norm');
 %title('Error in Laplacian approximation')
 %text(2e-7, 5e-10,'f(x)=sin(2\pi{x}/\lambda)cos(2\pi{y}/\lambda)','fontsize',16,'fontname','Times')
 %text(1.1e-5, 1e-11,'WendlandC6,O(4),h/dx=3,ss=2','fontsize',12,'fontname','Times')

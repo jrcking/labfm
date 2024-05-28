@@ -41,7 +41,7 @@ v(i)=tmp
      l2_y = sqrt(l2_y)/max(sqrt(e2_y),epsilon(e2_y))
      deallocate(grad)
      !! Output and flush
-     write(1,*) h0/lambda,hovdx_av,l2_x,l2_y! !h0/lambda,hovdx_av  !kl/(nx*pi)
+     write(1,*) dx/lambda,hovdx_av,l2_x,l2_y! !h0/lambda,hovdx_av  !kl/(nx*pi)
      write(6,*) npfb,hovdx_av,l2_x,l2_y
      flush(1)
 
@@ -87,7 +87,7 @@ v(i)=lap(i)
 
 
      !! Output to file and flush
-     write(1,*) h0/lambda,hovdx_av,l2_l !h0/lambda,hovdx_av !kl/(nx*pi)
+     write(1,*) dx/lambda,hovdx_av,l2_l !h0/lambda,hovdx_av !kl/(nx*pi)
      write(6,*) npfb,hovdx_av,l2_l
      flush(1)
 

@@ -75,7 +75,7 @@ contains
 
      if(allocated(irelation)) then
         call sawtooth   !! If sawtooth test case, call this to check convergence against anlytical solution
-call tanhwiggle        
+!call tanhwiggle        
      end if
    
      !! Calculate the L2norms
