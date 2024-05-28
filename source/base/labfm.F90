@@ -33,7 +33,7 @@ program labfm
      !! Calculate all the interparticle weights and any moments we might need
      !! This is the key part of LABFM
      call calc_interparticle_weights
-!     call filter_coefficients
+!     call filter_coefficients 
 
      !! Call subroutine to do whatever test we choose...
      call gradient_convergence_test
