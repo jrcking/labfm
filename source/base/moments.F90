@@ -578,158 +578,116 @@ contains
   function abfs12(dummy,x,y) result(ggvec)         !! TWELVE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(13) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite12(xx)*0.015625d0
-     ggvec(2) = Hermite11(xx)*Hermite1(yy)*0.015625d0
-     ggvec(3) = Hermite10(xx)*Hermite2(yy)*0.015625d0
-     ggvec(4) = Hermite9(xx)*Hermite3(yy)*0.015625d0
-     ggvec(5) = Hermite8(xx)*Hermite4(yy)*0.015625d0
-     ggvec(6) = Hermite7(xx)*Hermite5(yy)*0.015625d0
-     ggvec(7) = Hermite6(xx)*Hermite6(yy)*0.015625d0
-     ggvec(8) = Hermite5(xx)*Hermite7(yy)*0.015625d0
-     ggvec(9) = Hermite4(xx)*Hermite8(yy)*0.015625d0
-     ggvec(10)= Hermite3(xx)*Hermite9(yy)*0.015625d0
-     ggvec(11)= Hermite2(xx)*Hermite10(yy)*0.015625d0
-     ggvec(12)= Hermite1(xx)*Hermite11(yy)*0.015625d0
-     ggvec(13)= Hermite12(yy)*0.015625d0              
+     write(6,*) "WARNING, ONLY CODED TO 10th ORDER. STOPPING"
+     stop
+              
   end function abfs12
   function abfs11(dummy,x,y) result(ggvec)         !! ELEVEN
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(12) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite11(xx)*0.03125d0*oosqrt2
-     ggvec(2) = Hermite10(xx)*Hermite1(yy)*0.03125d0*oosqrt2
-     ggvec(3) = Hermite9(xx)*Hermite2(yy)*0.03125d0*oosqrt2
-     ggvec(4) = Hermite8(xx)*Hermite3(yy)*0.03125d0*oosqrt2
-     ggvec(5) = Hermite7(xx)*Hermite4(yy)*0.03125d0*oosqrt2
-     ggvec(6) = Hermite6(xx)*Hermite5(yy)*0.03125d0*oosqrt2
-     ggvec(7) = Hermite5(xx)*Hermite6(yy)*0.03125d0*oosqrt2
-     ggvec(8) = Hermite4(xx)*Hermite7(yy)*0.03125d0*oosqrt2
-     ggvec(9) = Hermite3(xx)*Hermite8(yy)*0.03125d0*oosqrt2
-     ggvec(10)= Hermite2(xx)*Hermite9(yy)*0.03125d0*oosqrt2
-     ggvec(11)= Hermite1(xx)*Hermite10(yy)*0.03125d0*oosqrt2
-     ggvec(12)= Hermite11(yy)*0.03125d0*oosqrt2
+     write(6,*) "WARNING, ONLY CODED TO 10th ORDER. STOPPING"
+     stop
   end function abfs11
   function abfs10(dummy,x,y) result(ggvec)         !! TEN
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(11) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite10(xx)*0.03125d0
-     ggvec(2) = Hermite9(xx)*Hermite1(yy)*0.03125d0
-     ggvec(3) = Hermite8(xx)*Hermite2(yy)*0.03125d0
-     ggvec(4) = Hermite7(xx)*Hermite3(yy)*0.03125d0
-     ggvec(5) = Hermite6(xx)*Hermite4(yy)*0.03125d0
-     ggvec(6) = Hermite5(xx)*Hermite5(yy)*0.03125d0
-     ggvec(7) = Hermite4(xx)*Hermite6(yy)*0.03125d0
-     ggvec(8) = Hermite3(xx)*Hermite7(yy)*0.03125d0
-     ggvec(9) = Hermite2(xx)*Hermite8(yy)*0.03125d0
-     ggvec(10)= Hermite1(xx)*Hermite9(yy)*0.03125d0
-     ggvec(11)= Hermite10(yy)*0.03125d0
+     ggvec(1) = Hermite10(x)
+     ggvec(2) = Hermite9(x)*Hermite1(y)
+     ggvec(3) = Hermite8(x)*Hermite2(y)
+     ggvec(4) = Hermite7(x)*Hermite3(y)
+     ggvec(5) = Hermite6(x)*Hermite4(y)
+     ggvec(6) = Hermite5(x)*Hermite5(y)
+     ggvec(7) = Hermite4(x)*Hermite6(y)
+     ggvec(8) = Hermite3(x)*Hermite7(y)
+     ggvec(9) = Hermite2(x)*Hermite8(y)
+     ggvec(10)= Hermite1(x)*Hermite9(y)
+     ggvec(11)= Hermite10(y)
   end function abfs10
   function abfs9(dummy,x,y) result(ggvec)       !! NINE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(10) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite9(xx)*oosqrt2*0.0625d0
-     ggvec(2) = Hermite8(xx)*Hermite1(yy)*oosqrt2*0.0625d0
-     ggvec(3) = Hermite7(xx)*Hermite2(yy)*oosqrt2*0.0625d0
-     ggvec(4) = Hermite6(xx)*Hermite3(yy)*oosqrt2*0.0625d0
-     ggvec(5) = Hermite5(xx)*Hermite4(yy)*oosqrt2*0.0625d0
-     ggvec(6) = Hermite4(xx)*Hermite5(yy)*oosqrt2*0.0625d0
-     ggvec(7) = Hermite3(xx)*Hermite6(yy)*oosqrt2*0.0625d0
-     ggvec(8) = Hermite2(xx)*Hermite7(yy)*oosqrt2*0.0625d0
-     ggvec(9) = Hermite1(xx)*Hermite8(yy)*oosqrt2*0.0625d0
-     ggvec(10)= Hermite9(yy)*oosqrt2*0.0625d0
+     ggvec(1) = Hermite9(x)
+     ggvec(2) = Hermite8(x)*Hermite1(y)
+     ggvec(3) = Hermite7(x)*Hermite2(y)
+     ggvec(4) = Hermite6(x)*Hermite3(y)
+     ggvec(5) = Hermite5(x)*Hermite4(y)
+     ggvec(6) = Hermite4(x)*Hermite5(y)
+     ggvec(7) = Hermite3(x)*Hermite6(y)
+     ggvec(8) = Hermite2(x)*Hermite7(y)
+     ggvec(9) = Hermite1(x)*Hermite8(y)
+     ggvec(10)= Hermite9(y)
   end function abfs9
   function abfs8(dummy,x,y) result(ggvec)            !! EIGHT
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(9) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite8(xx)*0.0625d0
-     ggvec(2) = Hermite7(xx)*Hermite1(yy)*0.0625d0
-     ggvec(3) = Hermite6(xx)*Hermite2(yy)*0.0625d0
-     ggvec(4) = Hermite5(xx)*Hermite3(yy)*0.0625d0
-     ggvec(5) = Hermite4(xx)*Hermite4(yy)*0.0625d0
-     ggvec(6) = Hermite3(xx)*Hermite5(yy)*0.0625d0
-     ggvec(7) = Hermite2(xx)*Hermite6(yy)*0.0625d0
-     ggvec(8) = Hermite1(xx)*Hermite7(yy)*0.0625d0
-     ggvec(9) = Hermite8(yy)*0.0625d0
+     ggvec(1) = Hermite8(x)
+     ggvec(2) = Hermite7(x)*Hermite1(y)
+     ggvec(3) = Hermite6(x)*Hermite2(y)
+     ggvec(4) = Hermite5(x)*Hermite3(y)
+     ggvec(5) = Hermite4(x)*Hermite4(y)
+     ggvec(6) = Hermite3(x)*Hermite5(y)
+     ggvec(7) = Hermite2(x)*Hermite6(y)
+     ggvec(8) = Hermite1(x)*Hermite7(y)
+     ggvec(9) = Hermite8(y)
   end function abfs8
   function abfs7(dummy,x,y) result(ggvec)         !! SEVEN
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(8) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite7(xx)*oosqrt2*0.125d0
-     ggvec(2) = Hermite6(xx)*Hermite1(yy)*oosqrt2*0.125d0
-     ggvec(3) = Hermite5(xx)*Hermite2(yy)*oosqrt2*0.125d0
-     ggvec(4) = Hermite4(xx)*Hermite3(yy)*oosqrt2*0.125d0
-     ggvec(5) = Hermite3(xx)*Hermite4(yy)*oosqrt2*0.125d0
-     ggvec(6) = Hermite2(xx)*Hermite5(yy)*oosqrt2*0.125d0
-     ggvec(7) = Hermite1(xx)*Hermite6(yy)*oosqrt2*0.125d0
-     ggvec(8) = Hermite7(yy)*oosqrt2*0.125d0
+     ggvec(1) = Hermite7(x)
+     ggvec(2) = Hermite6(x)*Hermite1(y)
+     ggvec(3) = Hermite5(x)*Hermite2(y)
+     ggvec(4) = Hermite4(x)*Hermite3(y)
+     ggvec(5) = Hermite3(x)*Hermite4(y)
+     ggvec(6) = Hermite2(x)*Hermite5(y)
+     ggvec(7) = Hermite1(x)*Hermite6(y)
+     ggvec(8) = Hermite7(y)
   end function abfs7
   function abfs6(dummy,x,y) result(ggvec)        !! SIX
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(7) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite6(xx)*0.125d0
-     ggvec(2) = Hermite5(xx)*Hermite1(yy)*0.125d0
-     ggvec(3) = Hermite4(xx)*Hermite2(yy)*0.125d0
-     ggvec(4) = Hermite3(xx)*Hermite3(yy)*0.125d0
-     ggvec(5) = Hermite2(xx)*Hermite4(yy)*0.125d0
-     ggvec(6) = Hermite1(xx)*Hermite5(yy)*0.125d0
-     ggvec(7) = Hermite6(yy)*0.125d0
+     ggvec(1) = Hermite6(x)
+     ggvec(2) = Hermite5(x)*Hermite1(y)
+     ggvec(3) = Hermite4(x)*Hermite2(y)
+     ggvec(4) = Hermite3(x)*Hermite3(y)
+     ggvec(5) = Hermite2(x)*Hermite4(y)
+     ggvec(6) = Hermite1(x)*Hermite5(y)
+     ggvec(7) = Hermite6(y)
   end function abfs6
   function abfs5(dummy,x,y) result(ggvec)      !! FIVE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(6) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite5(xx)*oosqrt2*0.25d0
-     ggvec(2) = Hermite4(xx)*Hermite1(yy)*oosqrt2*0.25d0
-     ggvec(3) = Hermite3(xx)*Hermite2(yy)*oosqrt2*0.25d0
-     ggvec(4) = Hermite2(xx)*Hermite3(yy)*oosqrt2*0.25d0
-     ggvec(5) = Hermite1(xx)*Hermite4(yy)*oosqrt2*0.25d0
-     ggvec(6) = Hermite5(yy)*oosqrt2*0.25d0
+     ggvec(1) = Hermite5(x)
+     ggvec(2) = Hermite4(x)*Hermite1(y)
+     ggvec(3) = Hermite3(x)*Hermite2(y)
+     ggvec(4) = Hermite2(x)*Hermite3(y)
+     ggvec(5) = Hermite1(x)*Hermite4(y)
+     ggvec(6) = Hermite5(y)
   end function abfs5
   function abfs4(dummy,x,y) result(ggvec)      !! FOUR
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite4(xx)*0.25d0
-     ggvec(2) = Hermite3(xx)*Hermite1(yy)*0.25d0
-     ggvec(3) = Hermite2(xx)*Hermite2(yy)*0.25d0
-     ggvec(4) = Hermite1(xx)*Hermite3(yy)*0.25d0
-     ggvec(5) = Hermite4(yy)*0.25d0
+     ggvec(1) = Hermite4(x)
+     ggvec(2) = Hermite3(x)*Hermite1(y)
+     ggvec(3) = Hermite2(x)*Hermite2(y)
+     ggvec(4) = Hermite1(x)*Hermite3(y)
+     ggvec(5) = Hermite4(y)
   end function abfs4
   function abfs3(dummy,x,y) result(ggvec)     !!! THREE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(4) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
-     ggvec(1) = Hermite3(xx)*oosqrt2*0.5d0
-     ggvec(2) = Hermite2(xx)*Hermite1(yy)*oosqrt2*0.5d0
-     ggvec(3) = Hermite1(xx)*Hermite2(yy)*oosqrt2*0.5d0
-     ggvec(4) = Hermite3(yy)*oosqrt2*0.5d0
+     ggvec(1) = Hermite3(x)
+     ggvec(2) = Hermite2(x)*Hermite1(y)
+     ggvec(3) = Hermite1(x)*Hermite2(y)
+     ggvec(4) = Hermite3(y)
   end function abfs3
   function abfs2(dummy,x,y) result(ggvec)     !! TWO AND ONE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
-     real(rkind) :: xx,yy
-     xx = x*oosqrt2;yy=y*oosqrt2
-     ggvec(1) = Hermite1(xx)*oosqrt2
-     ggvec(2) = Hermite1(yy)*oosqrt2
-     ggvec(3) = Hermite2(xx)*0.5d0
-     ggvec(4) = Hermite1(xx)*Hermite1(yy)*0.5d0
-     ggvec(5) = Hermite2(yy)*0.5d0
+     ggvec(1) = Hermite1(x)
+     ggvec(2) = Hermite1(y)
+     ggvec(3) = Hermite2(x)
+     ggvec(4) = Hermite1(x)*Hermite1(y)
+     ggvec(5) = Hermite2(y)
   end function abfs2
 !! ------------------------------------------------------------------------------------------------
 #elif ABF==3
@@ -984,58 +942,58 @@ contains
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(7) :: ggvec
      real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
+     xx = oosqrt2*x;yy=y
      ggvec(1) = Laguerre6(xx)
-     ggvec(2) = Laguerre5(xx)*Hermite1(yy)*oosqrt2
-     ggvec(3) = Laguerre4(xx)*Hermite2(yy)*0.5d0
-     ggvec(4) = Laguerre3(xx)*Hermite3(yy)*0.5d0*oosqrt2
-     ggvec(5) = Laguerre2(xx)*Hermite4(yy)*0.25d0
-     ggvec(6) = Laguerre1(xx)*Hermite5(yy)*0.25d0*oosqrt2
-     ggvec(7) = Hermite6(yy)*0.125d0
+     ggvec(2) = Laguerre5(xx)*Hermite1(yy)
+     ggvec(3) = Laguerre4(xx)*Hermite2(yy)
+     ggvec(4) = Laguerre3(xx)*Hermite3(yy)
+     ggvec(5) = Laguerre2(xx)*Hermite4(yy)
+     ggvec(6) = Laguerre1(xx)*Hermite5(yy)
+     ggvec(7) = Hermite6(yy)
   end function abfs6
   function abfs5(dummy,x,y) result(ggvec)      !! FIVE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(6) :: ggvec
      real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
+     xx = oosqrt2*x;yy=y
      ggvec(1) = Laguerre5(xx)
-     ggvec(2) = Laguerre4(xx)*Hermite1(yy)*oosqrt2
-     ggvec(3) = Laguerre3(xx)*Hermite2(yy)*0.5d0
-     ggvec(4) = Laguerre2(xx)*Hermite3(yy)*oosqrt2*0.5d0
-     ggvec(5) = Laguerre1(xx)*Hermite4(yy)*0.25d0
-     ggvec(6) = Hermite5(yy)*oosqrt2*0.25d0
+     ggvec(2) = Laguerre4(xx)*Hermite1(yy)
+     ggvec(3) = Laguerre3(xx)*Hermite2(yy)
+     ggvec(4) = Laguerre2(xx)*Hermite3(yy)
+     ggvec(5) = Laguerre1(xx)*Hermite4(yy)
+     ggvec(6) = Hermite5(yy)
   end function abfs5
   function abfs4(dummy,x,y) result(ggvec)      !! FOUR
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
      real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
+     xx = oosqrt2*x;yy=y
      ggvec(1) = Laguerre4(xx)
-     ggvec(2) = Laguerre3(xx)*Hermite1(yy)*oosqrt2
-     ggvec(3) = Laguerre2(xx)*Hermite2(yy)*0.5d0
-     ggvec(4) = Laguerre1(xx)*Hermite3(yy)*0.5d0*oosqrt2
-     ggvec(5) = Hermite4(yy)*0.25d0
+     ggvec(2) = Laguerre3(xx)*Hermite1(yy)
+     ggvec(3) = Laguerre2(xx)*Hermite2(yy)
+     ggvec(4) = Laguerre1(xx)*Hermite3(yy)
+     ggvec(5) = Hermite4(yy)
   end function abfs4
   function abfs3(dummy,x,y) result(ggvec)     !!! THREE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(4) :: ggvec
      real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=oosqrt2*y
+     xx = oosqrt2*x;yy=y
      ggvec(1) = Laguerre3(xx)
-     ggvec(2) = Laguerre2(xx)*Hermite1(yy)*oosqrt2
-     ggvec(3) = Laguerre1(xx)*Hermite2(yy)*0.5d0
-     ggvec(4) = Hermite3(yy)*oosqrt2*0.5d0
+     ggvec(2) = Laguerre2(xx)*Hermite1(yy)
+     ggvec(3) = Laguerre1(xx)*Hermite2(yy)
+     ggvec(4) = Hermite3(yy)
   end function abfs3
   function abfs2(dummy,x,y) result(ggvec)     !! TWO AND ONE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
      real(rkind) :: xx,yy
-     xx = x*oosqrt2;yy=y*oosqrt2
-     ggvec(1) = Laguerre1(xx)*oosqrt2
-     ggvec(2) = Hermite1(yy)*oosqrt2
+     xx = x*oosqrt2;yy=y
+     ggvec(1) = Laguerre1(xx)
+     ggvec(2) = Hermite1(yy)
      ggvec(3) = Laguerre2(xx)
-     ggvec(4) = Laguerre1(xx)*Hermite1(yy)*oosqrt2
-     ggvec(5) = Hermite2(yy)*0.5d0
+     ggvec(4) = Laguerre1(xx)*Hermite1(yy)
+     ggvec(5) = Hermite2(yy)
   end function abfs2  
 #endif
 !! ------------------------------------------------------------------------------------------------
@@ -1046,82 +1004,66 @@ contains
   function Hermite1(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: Hres
-     Hres = 2.0d0*z
+     Hres = z
   end function Hermite1
   function Hermite2(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: Hres
-     Hres = 4.0d0*z*z - 2.0d0
+     Hres = z*z - 1.0d0
   end function Hermite2
   function Hermite3(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: Hres
-     Hres = 8.0d0*z*z*z - 12.0d0*z
+     Hres = z*z*z - 3.0d0*z
   end function Hermite3
   function Hermite4(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: Hres
-     Hres = 16.0d0*z*z*z*z - 48.0d0*z*z + 12.0d0
+     Hres = z*z*z*z - 6.0d0*z*z + 3.0d0
   end function Hermite4
   function Hermite5(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z3
      real(rkind) :: Hres
      z2=z*z;z3=z*z2
-     Hres = 32.0d0*z2*z3 - 160.0d0*z3 + 120.0*z
+     Hres = z2*z3 - 10.0d0*z3 + 15.0*z
   end function Hermite5
   function Hermite6(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z3
      real(rkind) :: Hres
      z2=z*z;z3=z*z2
-     Hres = 64.0d0*z3*z3 - 480.0d0*z2*z2 + 720.0d0*z2 - 120.0d0
+     Hres = z3*z3 - 15.0d0*z2*z2 + 45.0d0*z2 - 15.0d0
   end function Hermite6
   function Hermite7(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z3,z4
      real(rkind) :: Hres
      z2=z*z;z3=z*z2;z4=z3*z
-     Hres = 128.0d0*z4*z3 - 1344.0d0*z3*z2 + 3360.0d0*z3 - 1680.0d0*z
+     Hres = z4*z3 - 21.0d0*z3*z2 + 105.0d0*z3 - 105.0d0*z
   end function Hermite7
   function Hermite8(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z4
      real(rkind) :: Hres
      z2=z*z;z4=z2*z2
-     Hres = 256.0d0*z4*z4 - 3584.0d0*z4*z2 + 13440.0d0*z4 - 13440.0d0*z2 + 1680.0d0
+     Hres = z4*z4 - 28.0d0*z4*z2 + 210.0d0*z4 - 420.0d0*z2 + 105.0d0
   end function Hermite8
   function Hermite9(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z3,z4
      real(rkind) :: Hres
      z2=z*z;z3=z*z2;z4=z3*z
-     Hres = 512.0*z4*z3*z2 - 9216.0d0*z4*z3 + 48384.0d0*z3*z2 - 80640.0d0*z3 + 30240.0d0*z
+     Hres = z4*z3*z2 - 36.0d0*z4*z3 + 378.0d0*z3*z2 - 1260.0d0*z3 + 945.0d0*z
   end function Hermite9
   function Hermite10(z) result(Hres)
      real(rkind),intent(in) :: z
      real(rkind) :: z2,z4
      real(rkind) :: Hres
      z2=z*z;z4=z2*z2
-     Hres = 1024.0d0*z4*z4*z2 - 23040.0d0*z4*z4 + 161280.0d0*z4*z2 - 403200.0d0*z4 &
-            + 302400.0d0*z2 - 30240.0d0
+     Hres = z4*z4*z2 - 45.0d0*z4*z4 + 630.0d0*z4*z2 - 3150.0d0*z4 &
+            + 4725.0d0*z2 - 945.0d0
   end function Hermite10
-  function Hermite11(z) result(Hres)
-     real(rkind),intent(in) :: z
-     real(rkind) :: z2,z4
-     real(rkind) :: Hres
-     z2=z*z;z4=z2*z2
-     Hres = 2048.0d0*z4*z4*z2*z - 56320.0d0*z4*z4*z + 506880.0d0*z4*z2*z - 1774080.0d0*z4*z &
-            + 2217600.0d0*z2*z - 665280.0d0*z
-  end function Hermite11
-  function Hermite12(z) result(Hres)
-     real(rkind),intent(in) :: z
-     real(rkind) :: z2,z4
-     real(rkind) :: Hres
-     z2=z*z;z4=z2*z2
-     Hres = 4096.0d0*z4*z4*z4 - 135168.0d0*z4*z4*z2 + 1520640.0d0*z4*z4 - 7096320.0d0*z4*z2 &
-            + 13305600.0d0*z4 - 7983360.0d0*z2 + 665280.0d0
-  end function Hermite12
 !! ------------------------------------------------------------------------------------------------
 !! Univariate Legendre polynomials
 !! ------------------------------------------------------------------------------------------------
