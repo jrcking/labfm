@@ -266,7 +266,7 @@ stop
      !!!! Note that ij_w_hyp(i,k) is the hyperviscosity operator weight for the k-th neighbour of particle i     
      
      integer(ikind) :: i,k,j,kk
-     real(rkind) :: tmp,x,y,fji,gsum,lsum,fsum,lscal
+     real(rkind) :: tmp,x,y,fji,gsum,lsum,fsum,lscal,lmax
      real(rkind) :: l2_f
      real(rkind),dimension(dims) :: rij
      real(rkind) :: filter_coeff
@@ -274,10 +274,28 @@ stop
      
      !! Determine the filter coefficients a priori
      allocate(alpha_filter(npfb))
-     !$omp parallel do private(lsum,k,j,rij,fji,tmp,x,y,lscal)
+if(.true.)then
+     !$omp parallel do private(lsum,kk,k,j,rij,fji,tmp,x,y,lscal,lmax)
      do i=1,npfb !! Loop over all particles
         lscal = 2.0*h(i)*sqrt(pi/dble(ij_count(i)))  !! Define lengthscale (effectively the particle spacing)
-        tmp = (2.0/3.0)*pi/(lscal) !! (2/3)*Nyquist wavenumber
+ 
+        !! Loop over a range of wavenumbers and evaluate the effective wavenumber at each
+        lmax = 0.0d0       
+        do kk = 1,ceiling(pi/lscal),2
+           tmp = kk
+           lsum = 0.0d0
+           do k=1,ij_count(i)              !! Loop over all neighbours
+              j = ij_link(i,k)
+              rij = rp(j,:)-rp(i,:);x=rij(1);y=rij(2)  
+
+              fji = 1.0d0 - cos(tmp*x)*cos(tmp*y)     !! Test function is sinusoidal in x and y
+              lsum = lsum + fji*ij_w_hyp(i,k)   
+           end do
+           lmax = max(lmax,lsum)
+        end do
+        
+        !! Test specific wavenumber
+        tmp = (5.0d0/6.0d0)*pi/lscal
         lsum = 0.0d0
         do k=1,ij_count(i)              !! Loop over all neighbours
            j = ij_link(i,k)
@@ -286,29 +304,61 @@ stop
            fji = 1.0d0 - cos(tmp*x)*cos(tmp*y)     !! Test function is sinusoidal in x and y
            lsum = lsum + fji*ij_w_hyp(i,k)   
         end do
-        alpha_filter(i) = (1.0/3.0)/lsum      !! Use response to test function to scale filter coefficient
+
+
+!   if(lmax.gt.lsum) then  !! response at k=1 is not strongest
+!      alpha_filter(i) = 0.5d0*(lmax+lsum)
+!   else
+!      alpha_filter(i) = lsum
+!   end if 
+   
+   alpha_filter(i) = lsum
+   alpha_filter(i) = alpha_filter(i)/(5.0d0/6.0d0)     
+        
+!        alpha_filter(i) = lmax/(two/three)      !! Use response to test function to scale filter coefficient
+!        write(6,*) h(i),lmax
      end do
      !$omp end parallel do
+else
+     alpha_filter(:)=1.0d0
+endif     
     
      
      !! Evaluate wavenumber response of filter
-     do kk=1,floor(nx*pi),2  !! Loop over all wavenumbers from 1 to Nyquist, in steps of 2
-
+     do kk=1,ceiling(nx*pi),2  !! Loop over all wavenumbers from 1 to Nyquist, in steps of 2
+     
         l2_f=0.0d0
         !$OMP PARALLEL DO PRIVATE(lsum,k,j,rij,fji,tmp,x,y,filter_coeff) REDUCTION(+:l2_f) 
         do i=1,npfb   !! Loop over all particles
            filter_coeff = alpha_filter(i)
+           
+           !! Evaluate lengthscale measure
+           lsum=0.0d0
+           do k=1,ij_count(i)    !! Loop over all neighbours
+              j = ij_link(i,k) 
+              rij = rp(j,:)-rp(i,:);x=rij(1);y=rij(2)
+              fji = 1.0d0 - cos(kk*x)*cos(kk*y)   !! Test function is sinusoidal with wavenumber kk
+              lsum = lsum + fji*ij_w_hyp2(i,k)
+           end do
+!           tmp = lsum/alpha_filter(i)
+!           write(1,*) kk/(nx*pi),tmp
+           
+           
+           !! Evaluate filter           
            lsum=0.0d0
            do k=1,ij_count(i)    !! Loop over all neighbours
               j = ij_link(i,k) 
               rij = rp(j,:)-rp(i,:);x=rij(1);y=rij(2)
 
               fji = 1.0d0 - cos(kk*x)*cos(kk*y)   !! Test function is sinusoidal with wavenumber kk
-              lsum = lsum + fji*ij_w_hyp(i,k)
+              lsum = lsum + fji*ij_w_hyp(i,k)/alpha_filter(i)
            end do
-           tmp = 1.0-lsum*filter_coeff    
+           
+           tmp = 1.0d0 - lsum
+!           tmp = 1.0d0 - (1.0d0*lsum**2.0d0 + 0.5d0*lsum**4.0d0)
+             
            l2_f = l2_f + tmp*tmp
-           write(1,*) kk/(nx*pi),tmp    !! Write response of THIS particle at THIS wavenumber to file
+           write(1,*) kk/(nx*pi),tmp  !! Write response of THIS particle at THIS wavenumber to file
         end do
         !$OMP END PARALLEL DO
         !! sqrt norms

@@ -22,6 +22,8 @@ contains
     !! This subroutine does some allocation, then calls routines to put nodes in
     !! cells, reorder them, and look through cells to build neighbour lists..
     integer nct_temp,n_count
+    real(rkind) :: q,qlim
+    integer(ikind) :: i,j,k
      
     !! Build cells and create cell linked-lists     
     if(.not.allocated(ic_count))then
@@ -47,6 +49,21 @@ contains
     
     !! Order neighbours by distance
     call order_neighbours
+    
+    !! Make ij_count4 (smaller stencils)
+!    allocate(ij_count4(npfb))
+!    do i=1,npfb
+!       qlim = (1.7d0*h(i))**two
+!       q = zero
+!       k=0
+!       do while(q.le.qlim)
+!          k=k+1
+!          j=ij_link(i,k)
+!          q=(rp(i,1)-rp(j,1))**two + (rp(i,2)-rp(j,2))**two
+!       end do
+!       ij_count4(i) = k
+!!       write(6,*) ij_count(i),k
+!    end do
 
 
     deallocate(ist)

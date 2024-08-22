@@ -236,13 +236,13 @@ flush(30);close(30)
      np = imp 
      
      
-     call iteratively_shift(10)
+     call iteratively_shift(100)
      deallocate(irelation)
      call create_mirror_particles     
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
      allocate(u(np)) 
-     allocate(v(np));allocate(w(np))
+     allocate(v(np));allocate(w(np),ro(np),Yspec(np))
      !$OMP PARALLEL DO 
      do i=1,npfb  
         u(i) = ftn(rp(i,1),rp(i,2))
@@ -364,11 +364,11 @@ flush(30);close(30)
      if(allocated(v))then
         if(allocated(thta))then
            do i=1,npfb
-              write(20,*) rp(i,1),rp(i,2),u(i),v(i),w(i),thta(i),p(i),h(i)
+              write(20,*) rp(i,1),rp(i,2),u(i),v(i),ro(i),thta(i),p(i),Yspec(i)
            end do
         else 
            do i=1,npfb
-              write(20,*) rp(i,1),rp(i,2),u(i),v(i),w(i),0.0d0,0.0d0,h(i)
+              write(20,*) rp(i,1),rp(i,2),u(i),v(i),ro(i),0.0d0,0.0d0,Yspec(i)
            end do
         end if
      else
@@ -441,6 +441,7 @@ flush(30);close(30)
 !        write(6,*) maxval(dr(1:npfb-nb,2))/dx
 
         deallocate(ij_link,ij_count)
+        if(allocated(ij_count4)) deallocate(ij_count4)
      end do
 
      deallocate(dr)

@@ -150,7 +150,7 @@ contains
           fji = phi(j)-phi(i)
           hyp_tmp = hyp_tmp + fji*ij_w_hyp(i,k)
        end do
-       filtphi(i) = phi(i) + filter_coeff(i)*hyp_tmp                                                                  
+       filtphi(i) = phi(i) + hyp_tmp                                                                  
     end do
     !$OMP END PARALLEL DO
 

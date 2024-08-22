@@ -5,11 +5,11 @@ A=load('../data_out/L2norm');
 figure(1)
 %%{
 x=0.001:0.001:1;
-y=1.0.-x.**6;
+y=1.0.-x.**8;
 %}
 
 
-semilogx(A(:,1),A(:,2),'r.',x,y,'k-')
+plot(A(:,1),A(:,2),'r.',x,y,'k-')
 
 set(gca,'Fontsize',18)
 set(gca,'Fontname','Times')

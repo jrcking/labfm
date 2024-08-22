@@ -19,9 +19,9 @@ contains
      real(rkind),dimension(dims) :: gradw,rij
 
      !! Linear system to find ABF coefficients
-     real(rkind),dimension(:,:),allocatable :: amatGx,amatGy,amatL,amathyp
+     real(rkind),dimension(:,:),allocatable :: amatGx,amatGy,amatL,amathyp,amathyp2
      real(rkind),dimension(:),allocatable :: gvec,rvec
-     real(rkind),dimension(:),allocatable :: xvec,bvecGx,bvecGy,bvecL,bvechyp
+     real(rkind),dimension(:),allocatable :: xvec,bvecGx,bvecGy,bvecL,bvechyp,bvechyp2
      integer(ikind),dimension(:),allocatable :: ipiv
      integer(ikind) :: i1,i2,nsize,nsizeG
      real(rkind) :: ff1,hh,xs,ys,hyp_scaling
@@ -62,14 +62,14 @@ contains
      nsizeG=(k*k+3*k)/2   !!  5,9,14,20,27,35,44... for k=2,3,4,5,6,7,8...
 
      !! Left hand sides and arrays for interparticle weights
-     allocate(ij_w_grad(npfb,nplink,2),ij_w_lap(npfb,nplink),ij_w_hyp(npfb,nplink))
+     allocate(ij_w_grad(npfb,nplink,2),ij_w_lap(npfb,nplink),ij_w_hyp(npfb,nplink),ij_w_hyp2(npfb,nplink))
      ij_w_grad=0.0d0;ij_w_lap=0.0d0;ij_w_hyp=0.0d0
-     allocate(amatGx(nsizeG,nsizeG),amatGy(nsizeG,nsizeG),amatL(nsizeG,nsizeG),amathyp(nsizeG,nsizeG))
-     amatGx=0.0d0;amatGy=0.0d0;amatL=0.0d0;amathyp=0.0d0
+     allocate(amatGx(nsizeG,nsizeG),amatGy(nsizeG,nsizeG),amatL(nsizeG,nsizeG),amathyp(nsizeG,nsizeG),amathyp2(nsizeG,nsizeG))
+     amatGx=0.0d0;amatGy=0.0d0;amatL=0.0d0;amathyp=0.0d0;amathyp2=0.0d0
  
      !! Right hand sides, vectors of monomials and ABFs
-     allocate(bvecGx(nsizeG),bvecGy(nsizeG),bvecL(nsizeG),gvec(nsizeG),xvec(nsizeG),bvechyp(nsizeG))
-     bvecGx=0.0d0;bvecGy=0.0d0;bvecL=0.0d0;gvec=0.0d0;xvec=0.0d0;bvechyp=0.0d0
+     allocate(bvecGx(nsizeG),bvecGy(nsizeG),bvecL(nsizeG),gvec(nsizeG),xvec(nsizeG),bvechyp(nsizeG),bvechyp2(nsizeG))
+     bvecGx=0.0d0;bvecGy=0.0d0;bvecL=0.0d0;gvec=0.0d0;xvec=0.0d0;bvechyp=0.0d0;bvechyp2=0.0d0
      allocate(ipiv(nsizeG));ipiv=0
      allocate(rvec(nsizeG));rvec=0.0d0
 
@@ -83,7 +83,7 @@ contains
      res2=zero
      !$OMP PARALLEL DO PRIVATE(nsize,amatGx,amathyp,k,j,rij,rad,qq,x,y,xx,yy, &
      !$OMP ff1,gvec,xvec,i1,i2,amatL,amatGy,bvecGx,bvecGy,bvecL,bvechyp,hh,xs,ys,hyp_scaling, &
-     !$omp work,iwork,ipiv,rvec) &
+     !$omp work,iwork,ipiv,rvec,amathyp2,bvechyp2) &
      !$OMP reduction(+:cnum,res1,res2)
      do i=1,npfb
         nsize = nsizeG
@@ -94,6 +94,7 @@ contains
            j = ij_link(i,k) 
            rij(:) = rp(i,:) - rp(j,:)         
            x = -rij(1);y = -rij(2)
+           
 
            !! Different types of ABF need different arguments (xx,yy)
            !! to account for domain of orthogonality
@@ -178,6 +179,7 @@ contains
 !        cnum = cnum + rad
 
         amatGy = amatGx;amatL=amatGx;amathyp = amatGx !! copying LHS
+        amathyp2 = amathyp
         
         !! Build RHS for ddx and ddy
         bvecGx=0.0d0;bvecGx(1)=1.0d0!/hh          
@@ -218,9 +220,14 @@ contains
         bvechyp(:)=0.0d0;bvechyp(21)=1.0d0;bvechyp(23)=3.0d0;bvechyp(25)=3.0d0;bvechyp(27)=1.0d0
         hyp_scaling = one/hh/hh/hh/hh/hh/hh        
 #elif order<=9
-        bvechyp(:)=0.0d0;bvechyp(36)=-1.0d0;bvechyp(38)=-4.0d0;bvechyp(40)=-6.0d0;bvechyp(42)=-4.0d0;bvechyp(44)=-1.0d0
+!        bvechyp(:)=0.0d0;bvechyp(36)=-1.0d0;bvechyp(38)=-4.0d0;bvechyp(40)=-6.0d0;bvechyp(42)=-4.0d0;bvechyp(44)=-1.0d0
+        bvechyp(:)=0.0d0;bvechyp(36)=-1.0d0;bvechyp(38)=-0.0d0;bvechyp(40)=-1.0d0;bvechyp(42)=-0.0d0;bvechyp(44)=-1.0d0
         hyp_scaling = one/hh/hh/hh/hh/hh/hh/hh/hh        
-#else        
+
+
+        bvechyp2(:)=0.0d0;bvechyp2(21)=1.0d0;bvechyp2(23)=3.0d0;bvechyp2(25)=3.0d0;bvechyp2(27)=1.0d0
+!        bvechyp2(:)=0.0d0;bvechyp2(21)=1.0d0;bvechyp2(23)=3.0d0;bvechyp2(25)=3.0d0;bvechyp2(27)=1.0d0
+#else
         bvechyp(:)=0.0d0;bvechyp(55)=1.0d0;bvechyp(57)=5.0d0;bvechyp(59)=10.0d0;bvechyp(61)=10.0d0
         bvechyp(63)=5.0d0;bvechyp(65)=1.0d0
         hyp_scaling = one/hh/hh/hh/hh/hh/hh/hh/hh/hh/hh                
@@ -231,12 +238,18 @@ contains
 #else        
         call svd_solve(amathyp,nsize,bvechyp)             
 #endif        
+        i1=0;i2=0;nsize=nsizeG 
+#ifdef ob        
+        call dgesv(nsize,1,amathyp2,nsize,i1,bvechyp2,nsize,i2)   
+#else        
+        call svd_solve(amathyp2,nsize,bvechyp2)             
+#endif        
         !! Another loop of neighbours to calculate interparticle weights
         do k=1,ij_count(i)
            j = ij_link(i,k) 
            rij(:) = rp(i,:) - rp(j,:)          
            x=-rij(1);y=-rij(2)
-
+          
            !! Calculate arguments (diff ABFs need args over diff ranges)
            rad = sqrt(x*x + y*y)/hh;qq=rad           
 #if ABF==1   
@@ -300,7 +313,9 @@ contains
            ij_w_grad(i,k,1) = dot_product(bvecGx,gvec)/hh
            ij_w_grad(i,k,2) = dot_product(bvecGy,gvec)/hh
            ij_w_lap(i,k) = dot_product(bvecL,gvec)/hh/hh 
-           ij_w_hyp(i,k) = dot_product(bvechyp,gvec)*hyp_scaling             
+           ij_w_hyp(i,k) = dot_product(bvechyp,gvec)!*hyp_scaling   
+           ij_w_hyp2(i,k) = dot_product(bvechyp2,gvec)!/hyp_scaling
+                 
         end do
 #ifdef ob        
         write(2,*) ""  !! Temporary fix for a weird openblas/lapack/openmp bug 
@@ -335,7 +350,7 @@ contains
         !! Set the particle length-scale (=~dx, but we *shouldn't* have access to dx)
         lscal = 2.0*h(i)*sqrt(pi/dble(ij_count(i)))
         !! Set the target wavenumber (2/3 of Nyquist)
-        tmp = pi/(1.5*lscal) !1.5
+        tmp = (5.0d0/6.0d0)*pi/lscal !1.5
         
         !! Calculate hyperviscosity operator of a signal at this wavenumber
         lsum = 0.0d0
@@ -347,12 +362,357 @@ contains
         end do
         
         !! Set the filter coefficient
-        filter_coeff(i) = (2.0/3.0)/lsum   !2/3
+        filter_coeff(i) = (5.0d0/6.0d0)/lsum   !2/3
+        
+        ij_w_hyp(i,:) = ij_w_hyp(i,:)*filter_coeff(i)
      end do
      !$omp end parallel do
+     
+     
     
      return
   end subroutine filter_coefficients
+!! ------------------------------------------------------------------------------------------------
+  subroutine adapt_stencils
+#ifndef ob  
+     !! This subroutine refines the stencil sizes. For each node, "smoothing length" is reduced by 
+     !! 2% per iteration, and this continues until several checks are failed:
+     !! 1) residual of LABFM laplacian system too big.
+     !! 2) Amplification factor of d/dx,d/dy,Laplacian > 1+tol, for N wavenumbers up to Nyquist
+     !! 3) h is smaller than X% of initial h.
+     !! 
+     !! Currently does this calculation for first layer of nodes, then if 3D, copies new smoothing 
+     !! lengths to other layers, and builds new stencils.
+     integer(ikind) :: i,j,k,ii,jj,nk,jjj
+     real(rkind) :: rad,qq,x,y,xx,yy,hchecksum,hchecksumL,hchecksumX,hchecksumY
+     real(rkind),dimension(dims) :: rij
+     real(rkind),dimension(:,:),allocatable :: amat,mmat
+     real(rkind),dimension(:),allocatable :: bvecL,bvecX,bvecY,gvec,xvec
+     integer(ikind) :: i1,i2,nsize,nsizeG,n_to_reduce,full_j_count_i
+     real(rkind) :: ff1,hh,reduction_factor,res_tol,amp_tol,sumcheck
+     logical :: reduce_h
+     integer(ikind),dimension(:),allocatable :: full_j_link_i
+     real(rkind),dimension(dims) :: grad_s
+     real(rkind) :: grad_s_mag,hfactor,radmax
+     real(rkind),dimension(:),allocatable :: neighbourcountreal
+ 
+#if order==4
+     k=4
+#elif order==6
+     k=6
+#elif order==8
+     k=8
+#elif order==10
+     k=10
+#endif
+     nsizeG=(k*k+3*k)/2   !!  5,9,14,20,27,35,44... for k=2,3,4,5,6,7,8...
+
+     !! Left hand sides 
+     allocate(amat(nsizeG,nsizeG),mmat(nsizeG,nsizeG))
+     amat=zero;mmat=zero
+ 
+     !! Right hand sides, vectors of monomials and ABFs
+     allocate(bvecL(nsizeG),bvecX(nsizeG),bvecY(nsizeG),gvec(nsizeG),xvec(nsizeG))
+     bvecL=zero;bvecX=zero;bvecY=zero;gvec=zero;xvec=zero
+
+    
+     !! Temporary neighbour lists...
+     allocate(full_j_link_i(nplink));full_j_link_i=0
+     allocate(neighbourcountreal(npfb));neighbourcountreal=zero
+
+     !! Set parameters of h-reduction
+     reduction_factor = 0.98 
+#if order==4
+     res_tol = 1.0d-3*dble(nsizeG**4)*epsilon(hchecksum)/dble(k)   !! For 6th order
+#elif order==6
+     res_tol = 5.0d-3*dble(nsizeG**4)*epsilon(hchecksum)/dble(k)   !! For 6th order
+#elif order==8
+     res_tol = 4.0d-2*dble(nsizeG**4)*epsilon(hchecksum)/dble(k)   !! For 8th order    
+#elif order==10     
+     res_tol = 1.0d+0*dble(nsizeG**4)*epsilon(hchecksum)/dble(k)   !! For 10th order
+#endif     
+     nk = 32   !! How many wavenumbers between 1 and Nyquist to check... ! 16
+     amp_tol = 1.0001d0   !! Maximum allowable amplification
+
+   
+     sumcheck = zero
+!     !$OMP PARALLEL DO PRIVATE(nsize,amat,k,j,rij,rad,qq,x,y,xx,yy, &
+!     !$OMP ff1,gvec,xvec,i1,i2,bvecL,bvecX,bvecY,hh,full_j_count_i,full_j_link_i, &
+!     !$OMP hchecksum,reduce_h,ii,mmat,hchecksumL,hchecksumX,hchecksumY) &
+!     !$omp reduction(+:sumcheck)
+     do i=1,npfb
+        ii=0
+        reduce_h=.true.
+        do while (reduce_h)
+           !! Reduce h (temporarily stored in hh
+           hh=h(i)*reduction_factor 
+           
+           !! Build temporary neighbour lists
+           full_j_count_i=0
+           full_j_link_i(:)=0
+           do k=1,ij_count(i)
+              j=ij_link(i,k)
+              rij(:) = rp(i,:) - rp(j,:)              
+              rad = sqrt(dot_product(rij,rij))
+              if(rad.le.hh*ss)then               !! Only for nodes within new support radius
+                 full_j_count_i = full_j_count_i + 1
+                 full_j_link_i(full_j_count_i) = j
+              end if              
+           end do
+ 
+           !! Build linear system 
+           nsize = nsizeG
+           amat=zero
+           do k=1,full_j_count_i
+              j = full_j_link_i(k) 
+              rij(:) = rp(i,:) - rp(j,:)
+              x = -rij(1);y = -rij(2)
+
+              !! Different types of ABF need different arguments (xx,yy)
+              !! to account for domain of orthogonality
+#if ABF==1
+              !! Find dW/dr of fundamental RBF
+              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/hh
+              xx=x;yy=y
+#elif ABF==2
+              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
+              xx=x/hh;yy=y/hh    !! Hermite          
+#elif ABF==3
+              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
+              xx=x/hh/ss;yy=y/hh/ss  !! Legendre   
+#endif     
+           !! Populate the ABF and monomial arrays
+#if order>=2
+              gvec(1:5) = abfs2(rad,xx,yy);
+              xvec(1:5) = monomials2(x/hh,y/hh)
+#endif     
+#if order>=3
+              gvec(6:9) = abfs3(rad,xx,yy);
+              xvec(6:9) = monomials3(x/hh,y/hh)
+#endif
+#if order>=4
+              gvec(10:14) = abfs4(rad,xx,yy);
+              xvec(10:14) = monomials4(x/hh,y/hh)
+#endif                       
+#if order>=5
+              gvec(15:20) = abfs5(rad,xx,yy);
+              xvec(15:20) = monomials5(x/hh,y/hh)
+#endif                       
+#if order>=6
+              gvec(21:27) = abfs6(rad,xx,yy);
+              xvec(21:27) = monomials6(x/hh,y/hh)
+#endif                       
+#if order>=7
+              gvec(28:35) = abfs7(rad,xx,yy);
+              xvec(28:35) = monomials7(x/hh,y/hh)
+#endif                       
+#if order>=8
+              gvec(36:44) = abfs8(rad,xx,yy);
+              xvec(36:44) = monomials8(x/hh,y/hh)
+#endif                       
+#if order>=9
+              gvec(45:54) = abfs9(rad,xx,yy);
+              xvec(45:54) = monomials9(x/hh,y/hh) 
+#endif   
+#if order>=10
+              gvec(55:65) = abfs10(rad,xx,yy);
+              xvec(55:65) = monomials10(x/hh,y/hh) 
+#endif            
+#if order>=11
+              gvec(66:77) = abfs11(rad,xx,yy);
+              xvec(66:77) = monomials11(x/hh,y/hh) 
+#endif            
+#if order>=12
+              gvec(78:90) = abfs12(rad,xx,yy);
+              xvec(78:90) = monomials12(x/hh,y/hh) 
+#endif    
+              gvec(1:nsizeG) = gvec(1:nsizeG)*ff1                            
+
+
+              !! Build the LHS - it is the same for all three diff operators (ddx,ddy,Lap)
+              do i1=1,nsize
+                 amat(i1,:) = amat(i1,:) + xvec(i1)*gvec(:)
+              end do
+           end do
+           mmat = amat
+
+           !! Solve system for Laplacian
+           bvecL(:)=zero;bvecL(3)=one/hh/hh;bvecL(5)=one/hh/hh;i1=0;i2=0
+           call svd_solve(amat,nsize,bvecL)       
+
+           !! Solve system for d/dx           
+           amat=mmat
+           bvecX(:)=zero;bvecX(1)=one/hh;i1=0;i2=0;nsize=nsizeG           
+           call svd_solve(amat,nsize,bvecX)       
+
+           !! Solve system for d/dy
+           amat=mmat
+           bvecY(:)=zero;bvecY(2)=one/hh;i1=0;i2=0;nsize=nsizeG           
+           call svd_solve(amat,nsize,bvecY)       
+           
+           !! First (main) check for h-reduction: the residual of the linear system solution (Laplacian)
+           !! Multiply the solution vector by the LHS, and calculate the residual
+           xvec=zero;xvec(3)=-one/hh/hh;xvec(5)=-one/hh/hh !! Initialise with -C^{L} (LABFM paper notation)
+           hchecksum = zero
+           do i1=1,nsizeG
+              do i2=1,nsizeG
+                 xvec(i1) = xvec(i1) + mmat(i1,i2)*bvecL(i2)
+              end do
+              hchecksum = hchecksum + xvec(i1)**two
+           end do
+           hchecksum = hchecksum*hh*hh
+           hchecksum = sqrt(hchecksum/dble(nsizeG))
+           
+           !! Second check for h-reduction: amplification of wavenumbers below Nyquist
+           i1=0
+           if(hchecksum.lt.res_tol/hh) then
+              do while(i1.le.nk.and.hchecksum.lt.res_tol/hh)
+                 i1 = i1 + 1
+                 hchecksumL = zero
+                 hchecksumX = zero
+                 hchecksumY = zero
+                 do k=1,full_j_count_i
+                    j = full_j_link_i(k) 
+                    rij(:) = rp(i,:) - rp(j,:)
+                    x = -rij(1);y = -rij(2)
+
+                    !! Different types of ABF need different arguments (xx,yy)
+                    !! to account for domain of orthogonality
+#if ABF==1
+                 !! Find dW/dr of fundamental RBF
+                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/hh
+                    xx=x;yy=y
+#elif ABF==2
+                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
+                    xx=x/hh;yy=y/hh    !! Hermite          
+#elif ABF==3
+                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
+                    xx=x/hh/ss;yy=y/hh/ss  !! Legendre   
+#endif     
+                    !! Populate the ABF and monomial arrays
+#if order>=2
+                    gvec(1:5) = abfs2(rad,xx,yy);
+#endif     
+#if order>=3
+                    gvec(6:9) = abfs3(rad,xx,yy);
+#endif
+#if order>=4
+                    gvec(10:14) = abfs4(rad,xx,yy);
+#endif                       
+#if order>=5
+                    gvec(15:20) = abfs5(rad,xx,yy);
+#endif                       
+#if order>=6
+                    gvec(21:27) = abfs6(rad,xx,yy);
+#endif                       
+#if order>=7
+                    gvec(28:35) = abfs7(rad,xx,yy);
+#endif                       
+#if order>=8
+                    gvec(36:44) = abfs8(rad,xx,yy);
+#endif                       
+#if order>=9
+                    gvec(45:54) = abfs9(rad,xx,yy);
+#endif   
+#if order>=10
+                    gvec(55:65) = abfs10(rad,xx,yy);
+#endif            
+#if order>=11
+                    gvec(66:77) = abfs11(rad,xx,yy);
+#endif            
+#if order>=12
+                    gvec(78:90) = abfs12(rad,xx,yy);
+#endif    
+                    gvec(1:nsizeG) = gvec(1:nsizeG)*ff1                    
+
+
+                    !! grad and Laplacian of signal at particular wavenumber qq
+                    qq = dble(i1)*pi/(h(i)/hovdx)/dble(nk)
+                    hchecksumL = hchecksumL + (0.5d0 - 0.5d0*cos(x*qq)*cos(y*qq))*dot_product(bvecL,gvec)
+                    hchecksumX = hchecksumX + cos(y*qq)*sin(x*qq)*dot_product(bvecX,gvec)
+                    hchecksumY = hchecksumY + cos(x*qq)*sin(y*qq)*dot_product(bvecY,gvec)
+                            
+                 end do                         
+           
+                 !! Normalise with qq or qq**2
+                 hchecksumL = hchecksumL/(qq**2)
+                 hchecksumX = hchecksumX/qq
+                 hchecksumY = hchecksumY/qq
+
+                 !! Modify hchecksum to break out of h-reduction loop if required
+                 if(hchecksumL.gt.amp_tol.or.hchecksumL.lt.zero) then
+write(6,*) i,i1,"stopping because of L",ii,hchecksum,res_tol/hh 
+                    hchecksum = two*res_tol/hh              
+                 end if
+                 if(abs(hchecksumX).gt.amp_tol) then
+                    hchecksum = two*res_tol/hh
+write(6,*) i,i1,"stopping because of X",ii                 
+                 end if
+                 if(abs(hchecksumY).gt.amp_tol) then
+                    hchecksum = two*res_tol/hh
+write(6,*) i,i1,"stopping because of Y",ii
+                 end if
+                 if(isnan(hchecksum)) then
+                    hchecksum = two*res_tol/hh
+write(6,*) i,i1,"stopping because of NaN",ii                    
+                 end if
+              
+              end do
+           end if
+
+           !! Limit is half original h
+           if(ii.gt.log(0.6)/log(reduction_factor)) then
+              hchecksum = two*res_tol/hh !! Limit total reduction to XX%.
+write(6,*) i,i1,"stopping because of max reduction limit",ii
+           end if
+
+
+!hchecksum = 2.0*res_tol/hh
+           !! Check the h-reduction criteria
+    
+!#if order==4
+!           hchecksum = two*res_tol/hh
+!#endif    
+           if(hchecksum.ge.res_tol/hh)then   !! breakout of do-while
+              reduce_h=.false.
+!write(6,*) i,"stopping due to residual",ii,hh,hchecksum,res_tol/hh 
+           else  !! continue reducing h, copy tmp neighbour lists to main neighbour lists, and set h(i)
+              h(i) = hh
+              ii = ii + 1         !! Counter for number of times reduced
+              ij_count(i)=0
+              ij_link(i,k)=0
+              do k=1,full_j_count_i
+                 j=full_j_link_i(k)
+                 ij_count(i) = ij_count(i) + 1
+                 ij_link(i,ij_count(i)) = j
+              end do        
+           end if
+                
+        end do
+        !! Temporary: store size in neighbourcountreal(i)
+        neighbourcountreal(i) = dble(ij_count(i))
+     end do
+!     !$OMP END PARALLEL DO    
+     deallocate(amat,mmat,bvecL,bvecX,bvecY,gvec,xvec)      
+          
+     
+     !! The remainder of this subroutine is just for analysis...
+     qq = zero
+     !$OMP PARALLEL DO REDUCTION(+:qq)
+     do i=1,npfb
+        qq = qq + neighbourcountreal(i)**2
+     end do
+     !$OMP END PARALLEL DO
+     qq = sqrt(qq/npfb)   
+     
+     !! Output to screen
+     write(6,*) "ij_count mean,min:",qq,floor(minval(neighbourcountreal(1:npfb)))
+               
+     !! Deallocation
+     deallocate(full_j_link_i,neighbourcountreal)
+#endif
+     return
+  end subroutine adapt_stencils     
 !! ------------------------------------------------------------------------------------------------
 !! FUNCTIONS TO CALCULATE THE TAYLOR MONOMIALS
 !! ------------------------------------------------------------------------------------------------

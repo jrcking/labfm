@@ -7,7 +7,7 @@ module common_2d
   implicit none
 
   !! Particle properties
-  real(rkind), dimension(:), allocatable, target :: u,v,w,thta,p,h,filter_coeff
+  real(rkind), dimension(:), allocatable, target :: u,v,w,thta,p,h,filter_coeff,ro,Yspec
   real(rkind), dimension(:,:), allocatable, target :: rp,rshift
   real(rkind),dimension(:,:),allocatable :: grad
   real(rkind),dimension(:),allocatable :: lap,div
@@ -23,12 +23,12 @@ module common_2d
   integer(ikind) :: itime
 
   !! Neighbours
-  integer(ikind),dimension(:),allocatable :: ij_count
+  integer(ikind),dimension(:),allocatable :: ij_count,ij_count4
   integer(ikind),dimension(:,:),allocatable :: ij_link
 
   !! Weightings - more memory, computationally cheaper...
   real(rkind),dimension(:,:,:),allocatable :: ij_w_grad
-  real(rkind),dimension(:,:),allocatable :: ij_w_lap,ij_w_hyp
+  real(rkind),dimension(:,:),allocatable :: ij_w_lap,ij_w_hyp,ij_w_hyp2
   real(rkind),dimension(:),allocatable :: hqw     !! Hopkins quadrature weights
 
   !! Parents and boundaries...

@@ -8,6 +8,8 @@ program labfm
   use moments
   use basic_convergence_studies
   use burgers_equation
+  use ns_equations
+  use filtering
   implicit none
 
   integer(ikind) :: k,kk
@@ -15,7 +17,7 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 5!! 1/2 the initial resolution
+  nx = 20!! 1/2 the initial resolution
   do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
@@ -27,31 +29,39 @@ program labfm
      !! Build the neighbour lists
      call find_neighbours
      
+     !! Adapt the stencils
+!     call adapt_stencils
+     
      !! Restrict stencil to the first XX neighbours
 !     ij_count(:)=70
 
      !! Calculate all the interparticle weights and any moments we might need
      !! This is the key part of LABFM
      call calc_interparticle_weights
-!     call filter_coefficients 
+     call filter_coefficients 
 
      !! Call subroutine to do whatever test we choose...
-     call gradient_convergence_test
+!     call gradient_convergence_test
 !     call laplacian_convergence_test
 !     call freq_response_test             !! Set nx=~80 and comment out nx=nx*2 above
-!     call filter_test
+     call filter_test
+!     call filter_some_noise
 !     call vortex_resolve_test
 !     call stability_test
 !     call solve_burgers_equation
+!     call solve_ns_equations
 
      call output_uv(k)
 
      !! Deallocate particle properties and neighbour lists
      deallocate(rp,u);if(allocated(v)) deallocate(v);if(allocated(w)) deallocate(w)
      deallocate(h)
-     deallocate(ij_count,ij_link);if(allocated(irelation)) deallocate(irelation)
+     deallocate(ro,Yspec)
+     deallocate(ij_count,ij_link)
+     if(allocated(irelation)) deallocate(irelation)
+     if(allocated(ij_count4)) deallocate(ij_count4)
      if(allocated(ibtype)) deallocate(ibtype)
-     if(allocated(ij_w_grad)) deallocate(ij_w_grad,ij_w_lap,ij_w_hyp)
+     if(allocated(ij_w_grad)) deallocate(ij_w_grad,ij_w_lap,ij_w_hyp,ij_w_hyp2)
      if(allocated(filter_coeff)) deallocate(filter_coeff)
      if(allocated(hqw)) deallocate(hqw)
 
@@ -81,7 +91,7 @@ subroutine initial_setup
 #elif order==3
   hovdx = 1.4d0
 #elif order==4
-  hovdx = 1.7d0
+  hovdx = 1.4d0
 #elif order==5
   hovdx = 2.0d0
 #elif order==6
@@ -89,7 +99,7 @@ subroutine initial_setup
 #elif order==7
   hovdx = 2.4d0
 #elif order==8
-  hovdx = 2.7d0
+  hovdx = 2.4d0  !2.7d0 for variable resolution
 #elif order==9
   hovdx = 2.9d0
 #elif order==10
@@ -129,5 +139,6 @@ subroutine initial_setup
   open(unit=11,file='./data_out/l2_time')
   open(unit=13,file='./data_out/uv/time_out')
   open(unit=14,file='./data_out/DM_eigens')
+  open(unit=15,file='./data_out/filtered_stats')
   
 end subroutine initial_setup

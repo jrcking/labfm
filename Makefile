@@ -54,7 +54,9 @@ OBJ_FILES += obj/svd_lib.o
 OBJ_FILES += obj/nodes.o obj/moments.o
 OBJ_FILES += obj/derivatives.o
 OBJ_FILES += obj/basic_convergence_studies.o  
+OBJ_FILES += obj/filtering.o
 OBJ_FILES += obj/burgers_equation.o 
+OBJ_FILES += obj/ns_equations.o
 OBJ_FILES += $(foreach sdir,$(SRC_DIR),$(patsubst $(sdir)/%.F90,obj/%.o,$(wildcard $(sdir)/*.F90)))
 
 HDEPS := $(OBJ_FILES:.o=.d)
