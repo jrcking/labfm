@@ -26,10 +26,8 @@ contains
     integer(ikind) :: i,j,k
      
     !! Build cells and create cell linked-lists     
-    if(.not.allocated(ic_count))then
-       call cell_generator
-       call neighbour_cells
-    end if
+    call cell_generator
+    call neighbour_cells
 
     ! allocate linking lists
     allocate(ij_count(npfb))
@@ -70,6 +68,7 @@ contains
     deallocate(nc)
     deallocate(ip)
     deallocate(cellpart)
+    deallocate(ic_count,ic_link)
 
   end subroutine find_neighbours
 !! ------------------------------------------------------------------------------------------------
@@ -77,6 +76,10 @@ contains
  
      !! cell size and max/min domain size
      !! NB. we use large cells (2.0d0*sup_size) to account for nodes shifted from stencil centre
+     
+     !! Set the support size
+     sup_size = ss*maxval(h(1:npfb))
+     
      unoss = 1.0d0/(sup_size)
      xmaxt = xmax + sup_size;xmint = xmin - sup_size
      ymaxt = ymax + sup_size;ymint = ymin - sup_size
@@ -235,7 +238,7 @@ contains
     real(rkind),dimension(dims) :: rij
     
     if(nc(jc).ne.0)then !! if the cell isn't empty
-       stencilsize2=(h(ii)*ss)**2
+       stencilsize2=(h(ii)*ss)**2.0d0
        is =ist(jc);ie=ist(jc+1)-1  !! Start and end indices of particles in cell jc
        do jj=is,ie       !! Loop over all particles in cell jc
           j=ip(jj)       !! j is regular index, jj is cell-ordered index

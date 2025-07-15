@@ -45,7 +45,7 @@ contains
     real(rkind) :: qq4
     qq4 = 1.0 - 0.5d0*qq;qq4=qq4**4.0
     factemp = 0.0d0
-    if(qq.le.2.0d0.and.qq.gt.0.0d0) then
+    if(qq.le.2.0d0.and.qq.ge.0.0d0) then
        factemp = (7.0/(4.0*pi))*(2.0*qq + 1.0)*qq4
     end if
   end function wab               

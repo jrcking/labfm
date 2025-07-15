@@ -177,7 +177,7 @@ flush(30);close(30)
      !! Create ceiling(sup_size/dx) layers of BC particles surrounding domain.
      !! Initialise variable u to an analytic function
      !! BC have irelation(i) = j, with j mirror particle in domain, proving periodic BCs
-     integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss
+     integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror
      real(rkind) :: ns
 
      time = 0.0d0
@@ -187,7 +187,7 @@ flush(30);close(30)
      hmin = h0     
 
      nss = ceiling(sup_size/dx) + 1
-     tmp_i = (nx+2*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
+     tmp_i = (nx+4*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
      npfb = (nx+1)**2     
      nb=0;nb_n=0
      allocate(rp(tmp_i,dims))
@@ -234,6 +234,7 @@ flush(30);close(30)
         end do
      end do
      np = imp 
+     nmirror = np - npfb
      
      
      call iteratively_shift(100)
@@ -241,8 +242,8 @@ flush(30);close(30)
      call create_mirror_particles     
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
-     allocate(u(np)) 
-     allocate(v(np));allocate(w(np),ro(np),Yspec(np))
+     allocate(u(np+2*nmirror)) 
+     allocate(v(np+2*nmirror));allocate(w(np+2*nmirror),ro(np+2*nmirror),Yspec(np+2*nmirror),E(np+2*nmirror))
      !$OMP PARALLEL DO 
      do i=1,npfb  
         u(i) = ftn(rp(i,1),rp(i,2))
@@ -262,6 +263,95 @@ end do
 flush(30);close(30)
      return
   end subroutine create_particles_bperiodic
+!! ------------------------------------------------------------------------------------------------  
+  subroutine create_particles_RT
+     !! Create particles for Rayleigh-Taylor flow. L-R is periodic. U-D is symmetric
+     integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror
+     real(rkind) :: ns
+
+     time = 0.0d0
+     dx = (xmax - xmin)/dble(nx+1);dv=dx*dx   ! set particle spacing based on particles per domain side length
+     h0 = hovdx*dx;sup_size = ss*h0;h2=h0*h0;h3=h2*h0;ss2=sup_size*sup_size  !h, support 
+     eta = 1.0d-8*h0;eta2 = eta*eta;eta3=eta*eta2
+     hmin = h0     
+
+     nss = ceiling(sup_size/dx) + 1
+     tmp_i = (nx+4*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
+     npfb = (nx+1)**2     
+     nb=0;nb_n=0
+     allocate(rp(tmp_i,dims))
+     allocate(h(tmp_i));h=h0
+     allocate(irelation(npfb+1:tmp_i));irelation = 0     
+
+     !! Create "fluid" particles
+     call random_seed()
+     !$OMP PARALLEL DO PRIVATE(tmp_i,tmp_j,ns) 
+     do i=1,npfb     !! Fluid particles in a square, nx+1 by nx+1,
+           tmp_i=(i-1)/(nx+1)+1
+           tmp_j=i - (tmp_i-1)*(nx+1)
+           call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
+           rp(i,1) = xmin + 0.5*dx + dble(tmp_i-1)*dx + ns
+           call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
+           rp(i,2) = xmin + 0.5*dx + dble(tmp_j-1)*dx + ns
+     end do
+     !$OMP END PARALLEL DO
+
+     !! Create boundary particles
+     imp = npfb
+     do i=1,ceiling(sup_size/dx) + 1      ! side Boundary particles
+        do j=1,nx + 1
+           tmp_i = (i-1)*(nx+1) + j                                                    !! East boundary
+           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
+           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! West boundary
+           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
+           tmp_i = (j-1)*(nx+1) + i                                                    !! North boundary
+           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i             
+           tmp_i = npfb + 1 - (j-1)*(nx+1) - i                                         !! South boundary
+           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmin - xmax;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i      
+        end do
+     end do
+     do i=1,ceiling(sup_size/dx) + 1    ! corner Boundary particles
+        do j=1,ceiling(sup_size/dx) + 1
+           tmp_i = (i-1)*(nx+1) + j                                                    !! NE corner
+           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmax - xmin;irelation(imp) = tmp_i      
+           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! SW corner
+           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmin - xmax;irelation(imp) = tmp_i      
+           tmp_i = (j-1)*(nx+1) + nx + 2 - i                                           !! SE corner
+           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2)=rp(tmp_i,2) + xmin - xmax;irelation(imp) = tmp_i      
+           tmp_i = npfb - nx - 1 - (i-1)*(nx+1) + j                                    !! NW corner
+           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;irelation(imp) = tmp_i      
+        end do
+     end do
+     np = imp 
+     nmirror = np - npfb
+     
+     
+     call iteratively_shift(100)
+     deallocate(irelation)
+     call create_mirror_particles     
+    
+     !! Set u(i) to a given differentiable function - this is set in sphtools
+     allocate(u(np+2*nmirror)) 
+     allocate(v(np+2*nmirror));allocate(w(np+2*nmirror),ro(np+2*nmirror),Yspec(np+2*nmirror),E(np+2*nmirror))
+     !$OMP PARALLEL DO 
+     do i=1,npfb  
+        u(i) = ftn(rp(i,1),rp(i,2))
+     end do
+     !$OMP END PARALLEL DO
+     !$OMP PARALLEL DO PRIVATE(j)
+     do i=npfb+1,np
+        j=irelation(i)
+        u(i) = u(j)
+     end do
+     !$OMP END PARALLEL DO
+
+open(unit=30,file='fort.30')
+do i=1,np
+write(30,*) rp(i,:)
+end do
+flush(30);close(30)
+     return
+  end subroutine create_particles_RT 
 !! ------------------------------------------------------------------------------------------------
   subroutine create_particles_bperiodic_varh
      !! Create particles in a Cartesian arrangement on a square domain (side length xmax-xmin)
@@ -361,21 +451,10 @@ flush(30);close(30)
      open(unit = 20,file=fname)  
 !     write(20,*) nx+1,dx,xmin,xmin,0      !! Write parameters
 
-     if(allocated(v))then
-        if(allocated(thta))then
-           do i=1,npfb
-              write(20,*) rp(i,1),rp(i,2),u(i),v(i),ro(i),thta(i),p(i),Yspec(i)
-           end do
-        else 
-           do i=1,npfb
-              write(20,*) rp(i,1),rp(i,2),u(i),v(i),ro(i),0.0d0,0.0d0,Yspec(i)
-           end do
-        end if
-     else
-        do i=1,npfb
-           write(20,*) rp(i,1),rp(i,2),u(i),0.0d0,0.0d0,0.0d0,h(i)
-        end do
-     end if
+
+     do i=1,npfb
+        write(20,*) rp(i,1),rp(i,2),h(i)/h0,u(i),v(i),ro(i),Yspec(i),E(i)
+     end do
      flush(20)
      close(20)
 
@@ -468,7 +547,7 @@ flush(30);close(30)
     do i=1,npfb
        
        !! LEFT AND RIGHT BOUNDARIES
-       if(rp(i,1).le.xmin+ss*h0)then ! Close to left bound
+       if(rp(i,1).le.xmin+ss*h(i))then ! Close to left bound
           if(xbcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
@@ -482,7 +561,7 @@ flush(30);close(30)
           end if
        end if   
        
-       if(rp(i,1).ge.xmax-ss*h0)then ! Close to right bound
+       if(rp(i,1).ge.xmax-ss*h(i))then ! Close to right bound
           if(xbcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
@@ -497,7 +576,7 @@ flush(30);close(30)
        end if 
        
        !! UPPER AND LOWER BOUNDARIES
-       if(rp(i,2).le.ymin+ss*h0)then ! Close to lower bound
+       if(rp(i,2).le.ymin+ss*h(i))then ! Close to lower bound
           if(ybcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
@@ -511,7 +590,7 @@ flush(30);close(30)
           end if
        end if   
        
-       if(rp(i,2).ge.ymax-ss*h0)then ! Close to upper bound
+       if(rp(i,2).ge.ymax-ss*h(i))then ! Close to upper bound
           if(ybcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
@@ -527,7 +606,7 @@ flush(30);close(30)
        !! CORNER BOUNDARIES
        rcorn = (/xmin,ymin/)
        cdist = sqrt(dot_product(rcorn-rp(i,:),rcorn-rp(i,:)))
-       if(cdist.le.ss*h0)then  !! Close to lower left corner
+       if(cdist.le.ss*h(i))then  !! Close to lower left corner
           if(xbcond.ne.0.and.ybcond.ne.0)then ! if a mirror node is required
              imp = imp + 1
              k = npfb + imp
@@ -546,7 +625,7 @@ flush(30);close(30)
        
        rcorn = (/xmax,ymin/)
        cdist = sqrt(dot_product(rcorn-rp(i,:),rcorn-rp(i,:)))
-       if(cdist.le.ss*h0)then  !! close to lower right corner
+       if(cdist.le.ss*h(i))then  !! close to lower right corner
           if(xbcond.ne.0.and.ybcond.ne.0)then ! if a mirror node is required
              imp = imp + 1
              k = npfb + imp
@@ -565,7 +644,7 @@ flush(30);close(30)
        
        rcorn = (/xmin,ymax/)
        cdist = sqrt(dot_product(rcorn-rp(i,:),rcorn-rp(i,:)))
-       if(cdist.le.ss*h0)then  !! close to upper left corner
+       if(cdist.le.ss*h(i))then  !! close to upper left corner
           if(xbcond.ne.0.and.ybcond.ne.0)then ! if a mirror node is required
              imp = imp + 1
              k = npfb + imp
@@ -584,7 +663,7 @@ flush(30);close(30)
        
        rcorn = (/xmax,ymax/)
        cdist = sqrt(dot_product(rcorn-rp(i,:),rcorn-rp(i,:)))
-       if(cdist.le.ss*h0)then  !! Close to upper right corner
+       if(cdist.le.ss*h(i))then  !! Close to upper right corner
           if(xbcond.ne.0.and.ybcond.ne.0)then ! if a mirror node is required
              imp = imp + 1
              k = npfb + imp
@@ -623,7 +702,7 @@ flush(30);close(30)
      time = 0.0d0
      xmax = 1.6d0;xmin = -1.6d0;ymax=xmax;ymin=xmin
      dx = 2.0*pi/4.0/nx  ! set particle spacing based 4*nx particles round disc
-     h0 = hovdx*dx;sup_size = ss*h0;h2=h0*h0;h3=h2*h0;ss2=sup_size*sup_size  !h, support 
+     h0 = hovdx*dx;sup_size = 2.0d0*ss*h0;h2=h0*h0;h3=h2*h0;ss2=sup_size*sup_size  !h, support 
      eta = 1.0d-8*h0;eta2 = eta*eta;eta3=eta*eta2
      hmin = h0/10.0d0
      dx0 = dx

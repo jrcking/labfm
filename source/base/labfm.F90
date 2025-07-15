@@ -9,6 +9,7 @@ program labfm
   use basic_convergence_studies
   use burgers_equation
   use ns_equations
+  use swarm
   use filtering
   implicit none
 
@@ -17,7 +18,7 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 20!! 1/2 the initial resolution
+  nx = 40!! 1/2 the initial resolution
   do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
@@ -44,12 +45,14 @@ program labfm
 !     call gradient_convergence_test
 !     call laplacian_convergence_test
 !     call freq_response_test             !! Set nx=~80 and comment out nx=nx*2 above
-     call filter_test
+!     call filter_test
 !     call filter_some_noise
 !     call vortex_resolve_test
 !     call stability_test
 !     call solve_burgers_equation
-!     call solve_ns_equations
+     call solve_ns_equations
+!     call swarm_test
+!      call swarm_navier_stokes
 
      call output_uv(k)
 
@@ -95,7 +98,7 @@ subroutine initial_setup
 #elif order==5
   hovdx = 2.0d0
 #elif order==6
-  hovdx = 2.2d0
+  hovdx = 1.8d0
 #elif order==7
   hovdx = 2.4d0
 #elif order==8
@@ -121,7 +124,7 @@ subroutine initial_setup
   
   !! Stencil size 
   ss = 2.0
-  nplink = 4.0*ss*ss*hovdx*hovdx  !! nplink allows for square stencil with side length 2*ss
+  nplink = 2*8*ss*ss*hovdx*hovdx  !! nplink allows for square stencil with side length 2*ss
 
   !! Level of noise in node distribution
   tmp_noise = 0.5d0!0.5d0 

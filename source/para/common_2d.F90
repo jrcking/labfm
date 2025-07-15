@@ -7,7 +7,7 @@ module common_2d
   implicit none
 
   !! Particle properties
-  real(rkind), dimension(:), allocatable, target :: u,v,w,thta,p,h,filter_coeff,ro,Yspec
+  real(rkind), dimension(:), allocatable, target :: u,v,w,h,filter_coeff,ro,Yspec,E
   real(rkind), dimension(:,:), allocatable, target :: rp,rshift
   real(rkind),dimension(:,:),allocatable :: grad
   real(rkind),dimension(:),allocatable :: lap,div
@@ -46,7 +46,7 @@ module common_2d
   real(rkind) :: pi2,pi3,pi4,hovdx_max,hovdx_min
 
   !! Parameters - wavelengths, diffusivities, non-dim numbers etc...
-  real(rkind) :: kl,lambda,l2,l3,l4,kappa,Re,BF,Ra,Pr
+  real(rkind) :: kl,lambda,l2,l3,l4,kappa,Re,BF
 
   !! Big sparse matrix
   real(rkind), dimension(:), allocatable :: lhs_mat

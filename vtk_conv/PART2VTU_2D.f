@@ -35,8 +35,8 @@ c       initial data for SPH models                                             
       CHARACTER(LEN=10) :: FMT,FMT1
       CHARACTER(LEN=1)  :: TAB,DQ
       
-      real xp(np_max),zp(np_max),up(np_max),vp(np_max),wp(np_max)
-      real thta(np_max),p(np_max),h(np_max)
+      real xp(np_max),zp(np_max),up(np_max),vp(np_max),ro(np_max)
+      real Y(np_max),E(np_max),h(np_max)
       real time(i_PART_counter_max), DT(i_PART_counter_max)
       integer np_all(i_PART_counter_max), IT(i_PART_counter_max)
       real  DT1(i_PART_counter_max),DT2(i_PART_counter_max)  
@@ -136,8 +136,8 @@ c       % READ POSITION, VELOCITY, DENSITY, PRESSURE, MASS AND VORTICITY DATA FO
          npp=0 ! keeps track of number of particles
          np = np_all(iframe)
          do i=1,np
-             read(23,*,end=300) xp(i),zp(i),up(i),vp(i),wp(i),thta(i)
-     &         ,p(i),h(i)
+             read(23,*,end=300) xp(i),zp(i),h(i),up(i),vp(i),
+     &                          ro(i),Y(i),E(i)
             npp=npp+1
          enddo
 300    np=npp
@@ -189,38 +189,38 @@ c     % OUTPUT TO FILE IN VTU FORMAT
         write(24,202)string4
               
 c       % WRITE IN PRESSURE DATA
-        string1 = '   <PointData Scalars='//DQ//'Pressure'//DQ//' Vector
-     &s='//DQ//'Velocity'//DQ//'>'
+        string1 = '   <PointData Scalars='//DQ//'ro'//DQ//' Vectors='
+     &//DQ//'Velocity'//DQ//'>'
         string2 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
-     &Q//'Pressures'//DQ//' format='//DQ//'ascii'//DQ//'>'
+     &Q//'ro'//DQ//' format='//DQ//'ascii'//DQ//'>'
         write(24,202)string1
         write(24,202)string2
         do ii=1,np
-          write(24,*)p(ii)
+          write(24,*)ro(ii)
         enddo
         string3 = '    </DataArray>'
         write(24,202)string3
 
-c       % WRITE density DATA        
-        string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
-     &Q//'Density'//DQ//' format='//DQ//'ascii'//DQ//'>'
-        write(24,202)string1
-        do ii=1,np
-          write(24,*)0.0d0!rho(ii)
-        enddo
-        string3 = '    </DataArray>'
-        write(24,202) string3
-
 c       % WRITE alpha DATA        
         string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
-     &Q//'Theta'//DQ//' format='//DQ//'ascii'//DQ//'>'
+     &Q//'Y'//DQ//' format='//DQ//'ascii'//DQ//'>'
         write(24,202)string1
         do ii=1,np
-          write(24,*)thta(ii)
+          write(24,*)Y(ii)
         enddo
         string3 = '    </DataArray>'
         write(24,202) string3
 
+c       % WRITE E DATA        
+        string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
+     &Q//'E'//DQ//' format='//DQ//'ascii'//DQ//'>'
+        write(24,202)string1
+        do ii=1,np
+          write(24,*)E(ii)
+        enddo
+        string3 = '    </DataArray>'
+        write(24,202) string3
+        
 c       % WRITE h DATA        
         string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
      &Q//'h'//DQ//' format='//DQ//'ascii'//DQ//'>'
@@ -229,28 +229,8 @@ c       % WRITE h DATA
           write(24,*)h(ii)
         enddo
         string3 = '    </DataArray>'
-        write(24,202) string3
-
-c       % WRITE vort DATA        
-        string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
-     &Q//'w'//DQ//' format='//DQ//'ascii'//DQ//'>'
-        write(24,202)string1
-        do ii=1,np
-          write(24,*)wp(ii)!vort(ii)
-        enddo
-        string3 = '    </DataArray>'
-        write(24,202) string3
-
-c       % WRITE fltype DATA
-        string1 = '    <DataArray type='//DQ//'Int32'//DQ//' Name='//D
-     &Q//'fltype'//DQ//' format='//DQ//'ascii'//DQ//'>'
-        write(24,202)string1
-        do ii=1,np
-          write(24,*)0!fltype(ii)
-        enddo
-        string3 = '    </DataArray>'
-        write(24,202) string3
-
+        write(24,202) string3        
+        
 
 c       % WRITE U-VELOCITY DATA        
         string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
@@ -272,15 +252,6 @@ c       % WRITE W_VELOCITY DATA
         string3 = '    </DataArray>'
         write(24,202) string3
 
-c       % WRITE surface DATA
-        string1 = '    <DataArray type='//DQ//'Int32'//DQ//' Name='//D
-     &Q//'surface'//DQ//' format='//DQ//'ascii'//DQ//'>'
-        write(24,202)string1
-        do ii=1,np
-          write(24,*)0!nsurf(ii)
-        enddo
-        string3 = '    </DataArray>'
-        write(24,202) string3
               
 c       % WRITE VELOCITY DATA
         string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D

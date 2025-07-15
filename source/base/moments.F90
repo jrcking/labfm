@@ -8,7 +8,7 @@ module moments
   implicit none
 !! Choice of ABF type:: 1=original, 2=Hermite polynomials, 3=Legendre, 4=Laguerre, 5 = Taylor monomials
 !! ABFs 2, 3 and 4 are multiplied by an RBF (Wab(qq) set in sphtools).
-#define ABF 2
+#define ABF 6
 
 contains
 !! ------------------------------------------------------------------------------------------------
@@ -115,8 +115,8 @@ contains
            ff1 = Wab(qq)      !! Taylor monomials
            xx = x/hh;yy=y/hh          
 #elif ABF==6
-           ff1 = Wab(qq)        !! Hermite-Laguerre combo for boundaries
-           xx = x/hh;yy=y/hh            
+           ff1 = Wab(qq)        !! Fourier
+           xx=pi*x/hh/ss;yy=pi*y/hh/ss
 #endif      
            !! Populate the ABF and monomial arrays
 #if order>=2
@@ -268,8 +268,8 @@ contains
            ff1 = Wab(qq)      !! Taylor monomials
            xx = x/hh;yy=y/hh    
 #elif ABF==6
-           ff1 = Wab(qq)       !! Hermite-Laguerre combo for boundaries
-           xx = x/hh;yy=y/hh                             
+           ff1 = Wab(qq)       !! Fourier
+           xx=pi*x/hh/ss;yy=pi*y/hh/ss
 #endif          
            !! Populate the ABF array        
 #if order>=2
@@ -334,6 +334,125 @@ contains
      deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec,bvechyp,amathyp)     
      return
   end subroutine calc_interparticle_weights
+!! ------------------------------------------------------------------------------------------------  
+  subroutine calc_interparticle_weights_nofilt_o2
+     integer(ikind) :: i,j,k
+     real(rkind) :: rad,qq,x,y,xx,yy,det,tmp,kval,rad2,rad3
+     real(rkind),dimension(dims) :: gradw,rij
+
+     !! Linear system to find ABF coefficients
+     real(rkind),dimension(:,:),allocatable :: amatGx,amatGy,amatL
+     real(rkind),dimension(:),allocatable :: gvec,rvec
+     real(rkind),dimension(:),allocatable :: xvec,bvecGx,bvecGy,bvecL
+     integer(ikind),dimension(:),allocatable :: ipiv
+     integer(ikind) :: i1,i2,nsize,nsizeG
+     real(rkind) :: ff1,hh,xs,ys
+     real(rkind) :: ic,res1,res2
+
+     !! Set desired order::
+     k=2
+
+     nsizeG=(k*k+3*k)/2   !!  5,9,14,20,27,35,44... for k=2,3,4,5,6,7,8...
+
+     !! Left hand sides and arrays for interparticle weights
+     allocate(ij_w_grad(npfb,nplink,2),ij_w_lap(npfb,nplink))
+     ij_w_grad=0.0d0;ij_w_lap=0.0d0
+     allocate(amatGx(nsizeG,nsizeG),amatGy(nsizeG,nsizeG),amatL(nsizeG,nsizeG))
+     amatGx=0.0d0;amatGy=0.0d0;amatL=0.0d0
+ 
+     !! Right hand sides, vectors of monomials and ABFs
+     allocate(bvecGx(nsizeG),bvecGy(nsizeG),bvecL(nsizeG),gvec(nsizeG),xvec(nsizeG))
+     bvecGx=0.0d0;bvecGy=0.0d0;bvecL=0.0d0;gvec=0.0d0;xvec=0.0d0
+
+     !$OMP PARALLEL DO PRIVATE(nsize,amatGx,k,j,rij,rad,qq,x,y,xx,yy, &
+     !$OMP ff1,gvec,xvec,i1,i2,amatL,amatGy,bvecGx,bvecGy,bvecL,hh,xs,ys) 
+
+     do i=1,npfb
+        nsize = nsizeG
+        amatGx=0.0d0
+        hh=h(i)
+                
+        do k=1,ij_count(i)
+           j = ij_link(i,k) 
+           rij(:) = rp(i,:) - rp(j,:)         
+           x = -rij(1);y = -rij(2)
+           
+
+           !! Different types of ABF need different arguments (xx,yy)
+           !! to account for domain of orthogonality
+           rad = sqrt(x*x + y*y)/hh;qq=rad
+           ff1 = Wab(qq)        !! Fourier
+           xx=pi*x/hh/ss;yy=pi*y/hh/ss
+
+           !! Populate the ABF and monomial arrays
+           gvec(1:5) = abfs2(rad,xx,yy);
+           xvec(1:5) = monomials2(x/hh,y/hh)
+
+                                  
+           !! Multiply ABFs by base RBF                         
+           gvec(:) = gvec(:)*ff1  
+                                             
+           !! Build the LHS - it is the same for all three operators
+           do i1=1,nsize
+              amatGy(i1,:) = xvec(i1)*gvec(:)   !! Contribution to LHS for this interaction
+           end do   
+           amatGx(:,:) = amatGx(:,:) + amatGy(:,:)                                        
+        end do   
+
+
+        amatGy = amatGx;amatL=amatGx!! copying LHS
+
+        
+        !! Build RHS for ddx and ddy
+        bvecGx=0.0d0;bvecGx(1)=1.0d0!/hh          
+        bvecGy=0.0d0;bvecGy(2)=1.0d0!/hh             
+        
+        !! Solve system for grad coefficients
+        i1=0;i2=0                          
+        call svd_solve(amatGx,nsize,bvecGx)       
+
+        i1=0;i2=0;nsize=nsizeG         
+        call svd_solve(amatGy,nsize,bvecGy)       
+
+
+        !! Solve system for Lap coefficients
+        bvecL(:)=0.0d0;bvecL(3)=1.0d0;bvecL(5)=1.0d0;i1=0;i2=0;nsize=nsizeG     
+        call svd_solve(amatL,nsize,bvecL)
+             
+        !! Another loop of neighbours to calculate interparticle weights
+        do k=1,ij_count(i)
+           j = ij_link(i,k) 
+           rij(:) = rp(i,:) - rp(j,:)          
+           x=-rij(1);y=-rij(2)
+          
+           !! Calculate arguments (diff ABFs need args over diff ranges)
+           rad = sqrt(x*x + y*y)/hh;qq=rad           
+           ff1 = Wab(qq)       !! Fourier
+           xx=pi*x/hh/ss;yy=pi*y/hh/ss
+           !! Populate the ABF array        
+           gvec(1:5) = abfs2(rad,xx,yy)
+
+
+           !! Multiply ABFs by base RBF                         
+           gvec(:) = gvec(:)*ff1 
+
+           !! Weights for operators        
+           ij_w_grad(i,k,1) = dot_product(bvecGx,gvec)/hh
+           ij_w_grad(i,k,2) = dot_product(bvecGy,gvec)/hh
+           ij_w_lap(i,k) = dot_product(bvecL,gvec)/hh/hh 
+
+                 
+        end do     
+
+     end do
+     !$OMP END PARALLEL DO
+         
+         
+!     write(6,*) 1.0d0/(cnum/dble(npfb))
+
+     deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec)     
+     return
+  end subroutine calc_interparticle_weights_nofilt_o2 
 !! ------------------------------------------------------------------------------------------------
   subroutine filter_coefficients
      !! Determine filter coefficients for hyperviscosity a priori, requiring
@@ -431,6 +550,10 @@ contains
 #elif order==10     
      res_tol = 1.0d+0*dble(nsizeG**4)*epsilon(hchecksum)/dble(k)   !! For 10th order
 #endif     
+#if ABF==6
+     res_tol = res_tol*1.0d-3
+#endif
+
      nk = 32   !! How many wavenumbers between 1 and Nyquist to check... ! 16
      amp_tol = 1.0001d0   !! Maximum allowable amplification
 
@@ -479,7 +602,10 @@ contains
               xx=x/hh;yy=y/hh    !! Hermite          
 #elif ABF==3
               rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
-              xx=x/hh/ss;yy=y/hh/ss  !! Legendre   
+              xx=x/hh/ss;yy=y/hh/ss  !! Legendre  
+#elif ABF==6
+              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function              
+              xx=pi*x/hh/ss;yy=pi*y/hh/ss               
 #endif     
            !! Populate the ABF and monomial arrays
 #if order>=2
@@ -588,6 +714,9 @@ contains
 #elif ABF==3
                     rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
                     xx=x/hh/ss;yy=y/hh/ss  !! Legendre   
+#elif ABF==6                    
+                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function                    
+                    xx=pi*x/hh/ss;yy=pi*y/hh/ss                                   
 #endif     
                     !! Populate the ABF and monomial arrays
 #if order>=2
@@ -1289,71 +1418,108 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      ggvec(5) = ff1*0.5d0*y2
   end function abfs2
 #elif ABF==6
-!! Hermite-Laguerre combo
-!! Only coded up to 6 for now.
+!! Henry Broadley Fourier Basis
 !! ------------------------------------------------------------------------------------------------
+  function abfs10(dummy,x,y) result(ggvec)         !! TEN
+     real(rkind),intent(in) :: x,y,dummy
+     real(rkind),dimension(11) :: ggvec
+     ggvec(1) = cos(5.0*x)
+     ggvec(2) = sin(5.0*x)*sin(y)
+     ggvec(3) = cos(4.0*x)*cos(y)
+     ggvec(4) = sin(4.0*x)*sin(2.0*y)
+     ggvec(5) = cos(3.0*x)*cos(2.0*y)
+     ggvec(6) = sin(3.0*x)*sin(3.0*y)
+     ggvec(7) = cos(2.0*x)*cos(3.0*y)
+     ggvec(8) = sin(2.0*x)*sin(4.0*y)
+     ggvec(9) = cos(x)*cos(4.0*y)
+     ggvec(10)= sin(x)*sin(5.0*y)
+     ggvec(11)= cos(5.0*y)
+  end function abfs10
+  function abfs9(dummy,x,y) result(ggvec)         !! NINE
+     real(rkind),intent(in) :: x,y,dummy
+     real(rkind),dimension(10) :: ggvec
+     ggvec(1) = sin(5.0*x)
+     ggvec(2) = cos(4.0*x)*sin(y)
+     ggvec(3) = sin(4.0*x)*cos(y)
+     ggvec(4) = cos(3.0*x)*sin(2.0*y)
+     ggvec(5) = sin(3.0*x)*cos(2.0*y)
+     ggvec(6) = cos(2.0*x)*sin(3.0*y)
+     ggvec(7) = sin(2.0*x)*cos(3.0*y)
+     ggvec(8) = cos(x)*sin(4.0*y)
+     ggvec(9) = sin(x)*cos(4.0*y)
+     ggvec(10)= sin(5.0*y)
+  end function abfs9
+  function abfs8(dummy,x,y) result(ggvec)         !! EIGHT
+     real(rkind),intent(in) :: x,y,dummy
+     real(rkind),dimension(9) :: ggvec
+     ggvec(1) = cos(4.0*x)
+     ggvec(2) = sin(4.0*x)*sin(y)
+     ggvec(3) = cos(3.0*x)*cos(1.0*y)
+     ggvec(4) = sin(3.0*x)*sin(2.0*y)
+     ggvec(5) = cos(2.0*x)*cos(2.0*y)
+     ggvec(6) = sin(2.0*x)*sin(3.0*y)
+     ggvec(7) = cos(1.0*x)*cos(3.0*y)
+     ggvec(8) = sin(x)*sin(4.0*y)
+     ggvec(9) = cos(4.0*y)
+  end function abfs8
   function abfs7(dummy,x,y) result(ggvec)         !! SEVEN
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(8) :: ggvec
-     write(6,*) "WARNING, Hermite-Laguerre combo ABFs only implemented up to 6th order so far. Stopping."
-     stop         
+     ggvec(1) = sin(4.0*x)
+     ggvec(2) = cos(3.0*x)*sin(y)
+     ggvec(3) = sin(3.0*x)*cos(1.0*y)
+     ggvec(4) = cos(2.0*x)*sin(2.0*y)
+     ggvec(5) = sin(2.0*x)*cos(2.0*y)
+     ggvec(6) = cos(1.0*x)*sin(3.0*y)
+     ggvec(7) = sin(x)*cos(3.0*y)
+     ggvec(8) = sin(4.0*y)
   end function abfs7
   function abfs6(dummy,x,y) result(ggvec)        !! SIX
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(7) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=y
-     ggvec(1) = Laguerre6(xx)
-     ggvec(2) = Laguerre5(xx)*Hermite1(yy)
-     ggvec(3) = Laguerre4(xx)*Hermite2(yy)
-     ggvec(4) = Laguerre3(xx)*Hermite3(yy)
-     ggvec(5) = Laguerre2(xx)*Hermite4(yy)
-     ggvec(6) = Laguerre1(xx)*Hermite5(yy)
-     ggvec(7) = Hermite6(yy)
+     ggvec(1) = cos(3.0*x)
+     ggvec(2) = sin(3.0*x)*sin(y)
+     ggvec(3) = cos(2.0*x)*cos(1.0*y)
+     ggvec(4) = sin(2.0*x)*sin(2.0*y)
+     ggvec(5) = cos(1.0*x)*cos(2.0*y)
+     ggvec(6) = sin(x)*sin(3.0*y)
+     ggvec(7) = cos(3.0*y)
   end function abfs6
   function abfs5(dummy,x,y) result(ggvec)      !! FIVE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(6) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=y
-     ggvec(1) = Laguerre5(xx)
-     ggvec(2) = Laguerre4(xx)*Hermite1(yy)
-     ggvec(3) = Laguerre3(xx)*Hermite2(yy)
-     ggvec(4) = Laguerre2(xx)*Hermite3(yy)
-     ggvec(5) = Laguerre1(xx)*Hermite4(yy)
-     ggvec(6) = Hermite5(yy)
+     ggvec(1) = sin(3.0*x)
+     ggvec(2) = cos(2.0*x)*sin(y)
+     ggvec(3) = sin(2.0*x)*cos(1.0*y)
+     ggvec(4) = cos(1.0*x)*sin(2.0*y)
+     ggvec(5) = sin(x)*cos(2.0*y)
+     ggvec(6) = sin(3.0*y)
   end function abfs5
   function abfs4(dummy,x,y) result(ggvec)      !! FOUR
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=y
-     ggvec(1) = Laguerre4(xx)
-     ggvec(2) = Laguerre3(xx)*Hermite1(yy)
-     ggvec(3) = Laguerre2(xx)*Hermite2(yy)
-     ggvec(4) = Laguerre1(xx)*Hermite3(yy)
-     ggvec(5) = Hermite4(yy)
+     ggvec(1) = cos(2.0*x)
+     ggvec(2) = sin(2.0*x)*sin(y)
+     ggvec(3) = cos(x)*cos(y)
+     ggvec(4) = sin(x)*sin(2.0*y)
+     ggvec(5) = cos(2.0*y)         
   end function abfs4
   function abfs3(dummy,x,y) result(ggvec)     !!! THREE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(4) :: ggvec
-     real(rkind) :: xx,yy
-     xx = oosqrt2*x;yy=y
-     ggvec(1) = Laguerre3(xx)
-     ggvec(2) = Laguerre2(xx)*Hermite1(yy)
-     ggvec(3) = Laguerre1(xx)*Hermite2(yy)
-     ggvec(4) = Hermite3(yy)
+     ggvec(1) = sin(2.0*x)
+     ggvec(2) = cos(x)*sin(y)
+     ggvec(3) = sin(x)*cos(y)
+     ggvec(4) = sin(2.0*y)
   end function abfs3
   function abfs2(dummy,x,y) result(ggvec)     !! TWO AND ONE
      real(rkind),intent(in) :: x,y,dummy
      real(rkind),dimension(5) :: ggvec
-     real(rkind) :: xx,yy
-     xx = x*oosqrt2;yy=y
-     ggvec(1) = Laguerre1(xx)
-     ggvec(2) = Hermite1(yy)
-     ggvec(3) = Laguerre2(xx)
-     ggvec(4) = Laguerre1(xx)*Hermite1(yy)
-     ggvec(5) = Hermite2(yy)
+     ggvec(1) = sin(x)
+     ggvec(2) = sin(y)
+     ggvec(3) = cos(x)
+     ggvec(4) = sin(x)*sin(y)
+     ggvec(5) = cos(y)
   end function abfs2  
 #endif
 !! ------------------------------------------------------------------------------------------------
