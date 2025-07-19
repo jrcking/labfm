@@ -57,12 +57,13 @@ contains
        do k=1,ij_count(i)
           j = ij_link(i,k) 
           fji = (phi(j)-phi(i))
+                   
           gradtmp(:) = gradtmp(:) + fji*ij_w_grad(i,k,:)
        end do
        gradphi(i,:) = gradtmp(:)
     end do
     !$OMP END PARALLEL DO
-
+    
     return
   end subroutine calc_gradient
 !! ------------------------------------------------------------------------------------------------  

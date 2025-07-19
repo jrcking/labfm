@@ -57,7 +57,7 @@ contains
 
     factemp =0.0d0
     if(qq.le.2.0d0.and.qq.gt.0.0d0) then
-       factemp = (7.0/(4.0*pi*h0))*(0.625*qq4 - 3.75*qq3 + 7.5*qq2 - 5.0*qq) 
+       factemp = (7.0/(4.0*pi))*(0.625*qq4 - 3.75*qq3 + 7.5*qq2 - 5.0*qq) 
     end if
   end function fac
 #elif kernel==2

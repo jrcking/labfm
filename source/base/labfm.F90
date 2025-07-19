@@ -18,13 +18,14 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 40!! 1/2 the initial resolution
+  nx = 60!! 1/2 the initial resolution
   do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
 
 !     call create_particles_banalytic
      call create_particles_bperiodic
+!     call create_particles_RT     
 !     call create_particles_bperiodic_varh
 
      !! Build the neighbour lists
@@ -90,7 +91,7 @@ subroutine initial_setup
 
   !! Particles per smoothing length (depends on order)
 #if order==2
-  hovdx = 1.2d0  
+  hovdx = 1.1d0  
 #elif order==3
   hovdx = 1.4d0
 #elif order==4

@@ -100,7 +100,7 @@ contains
            !! to account for domain of orthogonality
            rad = sqrt(x*x + y*y)/hh;qq=rad
 #if ABF==1   
-           ff1 = fac(qq)/hh
+           ff1 = fac(qq)/h0/hh
            xx=x;yy=y
 #elif ABF==2     
            ff1 = Wab(qq)
@@ -253,7 +253,7 @@ contains
            !! Calculate arguments (diff ABFs need args over diff ranges)
            rad = sqrt(x*x + y*y)/hh;qq=rad           
 #if ABF==1   
-           ff1 = fac(qq)/hh
+           ff1 = fac(qq)/h0/hh
            xx=x;yy=y
 #elif ABF==2     
            ff1 = Wab(qq)
@@ -379,10 +379,27 @@ contains
            
 
            !! Different types of ABF need different arguments (xx,yy)
-           !! to account for domain of orthogonality
+           !! to account for domain of orthogonality           
            rad = sqrt(x*x + y*y)/hh;qq=rad
-           ff1 = Wab(qq)        !! Fourier
+#if ABF==1   
+           ff1 = fac(qq)/hh/hh
+           xx=x;yy=y
+#elif ABF==2     
+           ff1 = Wab(qq)
+           xx=x/hh;yy=y/hh    !! Hermite   
+#elif ABF==3
+           ff1 = Wab(qq)
+           xx=x/hh/ss;yy=y/hh/ss  !! Legendre
+#elif ABF==4
+           ff1 = Wab(qq)
+           xx=x/hh;yy=y/hh    !! Laguerre   
+#elif ABF==5
+           ff1 = Wab(qq)      !! Taylor monomials
+           xx = x/hh;yy=y/hh    
+#elif ABF==6
+           ff1 = Wab(qq)       !! Fourier
            xx=pi*x/hh/ss;yy=pi*y/hh/ss
+#endif            
 
            !! Populate the ABF and monomial arrays
            gvec(1:5) = abfs2(rad,xx,yy);
@@ -426,9 +443,26 @@ contains
            x=-rij(1);y=-rij(2)
           
            !! Calculate arguments (diff ABFs need args over diff ranges)
-           rad = sqrt(x*x + y*y)/hh;qq=rad           
+           rad = sqrt(x*x + y*y)/hh;qq=rad     
+#if ABF==1   
+           ff1 = fac(qq)/hh/hh
+           xx=x;yy=y
+#elif ABF==2     
+           ff1 = Wab(qq)
+           xx=x/hh;yy=y/hh    !! Hermite   
+#elif ABF==3
+           ff1 = Wab(qq)
+           xx=x/hh/ss;yy=y/hh/ss  !! Legendre
+#elif ABF==4
+           ff1 = Wab(qq)
+           xx=x/hh;yy=y/hh    !! Laguerre   
+#elif ABF==5
+           ff1 = Wab(qq)      !! Taylor monomials
+           xx = x/hh;yy=y/hh    
+#elif ABF==6
            ff1 = Wab(qq)       !! Fourier
            xx=pi*x/hh/ss;yy=pi*y/hh/ss
+#endif                  
            !! Populate the ABF array        
            gvec(1:5) = abfs2(rad,xx,yy)
 
@@ -453,6 +487,91 @@ contains
      deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec)     
      return
   end subroutine calc_interparticle_weights_nofilt_o2 
+!! ------------------------------------------------------------------------------------------------  
+  subroutine calc_interparticle_weights_nofilt_sph
+     integer(ikind) :: i,j,k
+     real(rkind) :: rad,qq,x,y,xx,yy,det,tmp,kval,rad2,rad3
+     real(rkind),dimension(dims) :: gradw,rij
+
+     !! Linear system to find ABF coefficients
+     real(rkind),dimension(:,:),allocatable :: amatGx,amatGy,amatL
+     real(rkind),dimension(:),allocatable :: gvec,rvec
+     real(rkind),dimension(:),allocatable :: xvec,bvecGx,bvecGy,bvecL
+     integer(ikind),dimension(:),allocatable :: ipiv
+     integer(ikind) :: i1,i2,nsize,nsizeG
+     real(rkind) :: ff1,hh,xs,ys
+     real(rkind) :: ic,res1,res2
+
+     !! Bonet & Lok
+     nsizeG=2   !!  5,9,14,20,27,35,44... for k=2,3,4,5,6,7,8...
+
+     !! Left hand sides and arrays for interparticle weights
+     allocate(ij_w_grad(npfb,nplink,2),ij_w_lap(npfb,nplink))
+     ij_w_grad=0.0d0;ij_w_lap=0.0d0
+     allocate(amatGx(nsizeG,nsizeG),amatGy(nsizeG,nsizeG),amatL(nsizeG,nsizeG))
+     amatGx=0.0d0;amatGy=0.0d0;amatL=0.0d0
+ 
+     !! Right hand sides, vectors of monomials and ABFs
+     allocate(bvecGx(nsizeG),bvecGy(nsizeG),bvecL(nsizeG),gvec(nsizeG),xvec(nsizeG))
+     bvecGx=0.0d0;bvecGy=0.0d0;bvecL=0.0d0;gvec=0.0d0;xvec=0.0d0
+
+     !$OMP PARALLEL DO PRIVATE(nsize,amatGx,k,j,rij,rad,qq,x,y,xx,yy, &
+     !$OMP ff1,gvec,xvec,i1,i2,amatL,amatGy,bvecGx,bvecGy,bvecL,hh,xs,ys,gradw) 
+
+     do i=1,npfb
+        nsize = nsizeG
+        amatGx=zero
+        hh=h(i)
+                
+        do k=1,ij_count(i)
+           j = ij_link(i,k) 
+           rij(:) = rp(i,:) - rp(j,:)         
+           x = rij(1);y = rij(2)
+           
+
+           !! Different types of ABF need different arguments (xx,yy)
+           !! to account for domain of orthogonality
+           rad = sqrt(x*x + y*y);qq=rad/hh
+           rad = max(rad,hh*1e-5)
+
+           ff1 = fac(qq)/(h0*hovdx*hovdx)
+           gradw(:) = -rij(:)*ff1/rad   !uncorrected kernel gradient           
+
+           !! Bonet & Lok correction tensor
+           amatGx(1,:) = amatGx(1,:) + gradw(:)*x
+           amatGx(2,:) = amatGx(2,:) + gradw(:)*y           
+
+           !! Uncorrected gradient
+           ij_w_grad(i,k,:) = -gradw(:)
+           ij_w_lap(i,k) = -two*dot_product(rij,ij_w_grad(i,k,:))/rad/rad
+
+        end do
+
+        !! Inverse of tensor
+        qq = amatGx(1,1)*amatGx(2,2) - amatGx(1,2)*amatGx(2,1)  
+                                      
+        amatGy(1,1) = amatGx(2,2)/qq
+        amatGy(2,2) = amatGx(1,1)/qq
+        amatGy(1,2) =-amatGx(1,2)/qq
+        amatGy(2,1) =-amatGx(2,1)/qq
+           
+        do k=1,ij_count(i)
+           j = ij_link(i,k) 
+           
+           gradw(:) = ij_w_grad(i,k,:)
+                      
+           !! Correct gradient:
+           ij_w_grad(i,k,:) = matmul(amatGy(:,:),gradw(:))
+                  
+        end do   
+
+     end do
+     !$OMP END PARALLEL DO
+!     write(6,*) 1.0d0/(cnum/dble(npfb))
+
+     deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec)     
+     return
+  end subroutine calc_interparticle_weights_nofilt_sph   
 !! ------------------------------------------------------------------------------------------------
   subroutine filter_coefficients
      !! Determine filter coefficients for hyperviscosity a priori, requiring
@@ -595,7 +714,7 @@ contains
               !! to account for domain of orthogonality
 #if ABF==1
               !! Find dW/dr of fundamental RBF
-              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/hh
+              rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/h0/hh
               xx=x;yy=y
 #elif ABF==2
               rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
@@ -706,7 +825,7 @@ contains
                     !! to account for domain of orthogonality
 #if ABF==1
                  !! Find dW/dr of fundamental RBF
-                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/hh
+                    rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1 = fac(qq)/h0/hh
                     xx=x;yy=y
 #elif ABF==2
                     rad = sqrt(dot_product(rij,rij));qq  = rad/hh;ff1=Wab(qq) !! Weighting function
@@ -961,15 +1080,15 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3);r15 = rad3*rad3*rad3*rad3*rad3
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y;x4=x3*x;y4=y3*y;x5=x4*x;y5=y4*y;x6=x5*x;y6=y5*y;x7=x6*x;y7=y6*y
      x8=x7*x;y8=y7*y
-     ggvec(1) = (20160.0*x6*y2 - 75600.0*x4*y4+37800.0*x2*y6-1575.0*y8)*ff1/r15        
-     ggvec(2) = (11025.0*x*y7-66150.0*x3*y5+52920.0*x5*y3-5040.0*x7*y)*ff1/r15
-     ggvec(3) = (720.0*x8-24840.0*x6*y2+74250.0*x4*y4-33975.0*x2*y6+1350.0*y8)*ff1/r15
-     ggvec(4) = (61425.0*x3*y5-9450.0*x*y7-56700*x5*y3-7560.0*x7*y)*ff1/r15
-     ggvec(5) = (29700.0*(x2*y6+x6*y2)-1080.0*(x8+y8)-73575.0*x4*y4)*ff1/r15
-     ggvec(6) = (61425.0*x5*y3-9450.0*x7*y-56700*x3*y5-7560.0*x*y7)*ff1/r15
-     ggvec(7) = (720.0*y8-24840.0*x2*y6+74250.0*x4*y4-33975.0*x6*y2+1350.0*x8)*ff1/r15
-     ggvec(8) = (11025.0*x7*y-66150.0*x5*y3+52920.0*x3*y5-5040.0*x*y7)*ff1/r15
-     ggvec(9) = (20160.0*x2*y6 - 75600.0*x4*y4+37800.0*x6*y2-1575.0*x8)*ff1/r15 
+     ggvec(1) = (20160.0*x6*y2 - 75600.0*x4*y4+37800.0*x2*y6-1575.0*y8)/r15        
+     ggvec(2) = (11025.0*x*y7-66150.0*x3*y5+52920.0*x5*y3-5040.0*x7*y)/r15
+     ggvec(3) = (720.0*x8-24840.0*x6*y2+74250.0*x4*y4-33975.0*x2*y6+1350.0*y8)/r15
+     ggvec(4) = (61425.0*x3*y5-9450.0*x*y7-56700*x5*y3-7560.0*x7*y)/r15
+     ggvec(5) = (29700.0*(x2*y6+x6*y2)-1080.0*(x8+y8)-73575.0*x4*y4)/r15
+     ggvec(6) = (61425.0*x5*y3-9450.0*x7*y-56700*x3*y5-7560.0*x*y7)/r15
+     ggvec(7) = (720.0*y8-24840.0*x2*y6+74250.0*x4*y4-33975.0*x6*y2+1350.0*x8)/r15
+     ggvec(8) = (11025.0*x7*y-66150.0*x5*y3+52920.0*x3*y5-5040.0*x*y7)/r15
+     ggvec(9) = (20160.0*x2*y6 - 75600.0*x4*y4+37800.0*x6*y2-1575.0*x8)/r15 
   end function abfs8
   function abfs7(rad,x,y) result(ggvec)     !! SEVEN
      real(rkind),intent(in) :: rad,x,y
@@ -978,14 +1097,14 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2,x3,y3,x4,y4,x5,y5,x6,y6,x7,y7
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3);r13 = rad3*rad3*rad3*rad2*rad2
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y;x4=x3*x;y4=y3*y;x5=x4*x;y5=y4*y;x6=x5*x;y6=y5*y;x7=x6*x;y7=y6*y
-     ggvec(1) = (6300.0*x3*y4 - 2520.0*x5*y2 - 1575.0*x*y6)*ff1/r13               
-     ggvec(2) = (720.0*x6*y - 225.0*y7 + 4050.0*x2*y5 - 5400.0*x4*y3)*ff1/r13
-     ggvec(3) = (1350.0*x*y6 - 120.0*x7 + 3000.0*x5*y2 + 5925.0*x3*y4)*ff1/r13
-     ggvec(4) = (180.0*y7 - 3555.0*x2*y5 + 5580.0*x4*y3 - 1080.0*x6*y)*ff1/r13
-     ggvec(5) = (180.0*x7 - 3555.0*x5*y2 + 5580.0*x3*y4 - 1080.0*x*y6)*ff1/r13
-     ggvec(6) = (1350.0*x6*y - 120.0*y7 + 3000.0*x2*y5 + 5925.0*x4*y3)*ff1/r13
-     ggvec(7) = (720.0*x*y6 - 225.0*x7 + 4050.0*x5*y2 - 5400.0*x3*y4)*ff1/r13
-     ggvec(8) = (6300.0*x4*y3 - 2520.0*x2*y5 - 1575.0*x6*y)*ff1/r13 
+     ggvec(1) = (6300.0*x3*y4 - 2520.0*x5*y2 - 1575.0*x*y6)/r13               
+     ggvec(2) = (720.0*x6*y - 225.0*y7 + 4050.0*x2*y5 - 5400.0*x4*y3)/r13
+     ggvec(3) = (1350.0*x*y6 - 120.0*x7 + 3000.0*x5*y2 + 5925.0*x3*y4)/r13
+     ggvec(4) = (180.0*y7 - 3555.0*x2*y5 + 5580.0*x4*y3 - 1080.0*x6*y)/r13
+     ggvec(5) = (180.0*x7 - 3555.0*x5*y2 + 5580.0*x3*y4 - 1080.0*x*y6)/r13
+     ggvec(6) = (1350.0*x6*y - 120.0*y7 + 3000.0*x2*y5 + 5925.0*x4*y3)/r13
+     ggvec(7) = (720.0*x*y6 - 225.0*x7 + 4050.0*x5*y2 - 5400.0*x3*y4)/r13
+     ggvec(8) = (6300.0*x4*y3 - 2520.0*x2*y5 - 1575.0*x6*y)/r13 
   end function abfs7
   function abfs6(rad,x,y) result(ggvec)   !! SIX
      real(rkind),intent(in) :: rad,x,y
@@ -994,13 +1113,13 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2,x3,y3,x4,y4,x5,y5,x6,y6
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3);r11 = rad3*rad3*rad3*rad2
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y;x4=x3*x;y4=y3*y;x5=x4*x;y5=y4*y;x6=x5*x;y6=y5*y
-     ggvec(1) = (360.0*x4*y2 - 540.0*x2*y4 + 45.0*y6)*ff1/r11                  
-     ggvec(2) = (600.0*x3*y3 - 225.0*x*y5 - 120.0*x5*y)*ff1/r11
-     ggvec(3) = (477.0*x2*y4 - 408.0*x4*y2 - 36.0*y6 + 24.0*x6)*ff1/r11
-     ggvec(4) = (180.0*x*y5 - 585.0*x3*y3 + 180.0*x5*y)*ff1/r11
-     ggvec(5) = (477.0*x4*y2 - 408.0*x2*y4 - 36.0*x6 + 24.0*y6)*ff1/r11
-     ggvec(6) = (600.0*x3*y3 - 225.0*x5*y - 120.0*x*y5)*ff1/r11
-     ggvec(7) = (360.0*x2*y4 - 540.0*x4*y2 + 45.0*x6)*ff1/r11
+     ggvec(1) = (360.0*x4*y2 - 540.0*x2*y4 + 45.0*y6)/r11                  
+     ggvec(2) = (600.0*x3*y3 - 225.0*x*y5 - 120.0*x5*y)/r11
+     ggvec(3) = (477.0*x2*y4 - 408.0*x4*y2 - 36.0*y6 + 24.0*x6)/r11
+     ggvec(4) = (180.0*x*y5 - 585.0*x3*y3 + 180.0*x5*y)/r11
+     ggvec(5) = (477.0*x4*y2 - 408.0*x2*y4 - 36.0*x6 + 24.0*y6)/r11
+     ggvec(6) = (600.0*x3*y3 - 225.0*x5*y - 120.0*x*y5)/r11
+     ggvec(7) = (360.0*x2*y4 - 540.0*x4*y2 + 45.0*x6)/r11
   end function abfs6
   function abfs5(rad,x,y) result(ggvec)      !! FIVE
      real(rkind),intent(in) :: rad,x,y
@@ -1009,12 +1128,12 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2,x3,y3,x4,y4,x5,y5
      rad3=max(rad*rad*rad,eta3);r9=rad3*rad3*rad3
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y;x4=x3*x;y4=y3*y;x5=x4*x;y5=y4*y
-     ggvec(1) = (45.0*x*y4 - 60.0*x3*y2)*ff1/r9                    
-     ggvec(2) = (9.0*y5 - 72.0*x2*y3 + 24.0*x4*y)*ff1/r9
-     ggvec(3) = (63.0*x3*y2 - 36.0*x*y4 - 6.0*x5)*ff1/r9
-     ggvec(4) = (63.0*x2*y3 - 36.0*x4*y - 6.0*y5)*ff1/r9
-     ggvec(5) = (9.0*x5 - 72.0*x3*y2 + 24.0*x*y4)*ff1/r9
-     ggvec(6) = (45.0*x4*y - 60.0*x2*y3)*ff1/r9
+     ggvec(1) = (45.0*x*y4 - 60.0*x3*y2)/r9                    
+     ggvec(2) = (9.0*y5 - 72.0*x2*y3 + 24.0*x4*y)/r9
+     ggvec(3) = (63.0*x3*y2 - 36.0*x*y4 - 6.0*x5)/r9
+     ggvec(4) = (63.0*x2*y3 - 36.0*x4*y - 6.0*y5)/r9
+     ggvec(5) = (9.0*x5 - 72.0*x3*y2 + 24.0*x*y4)/r9
+     ggvec(6) = (45.0*x4*y - 60.0*x2*y3)/r9
   end function abfs5
   function abfs4(rad,x,y) result(ggvec)     !! FOUR
      real(rkind),intent(in) :: rad,x,y
@@ -1023,11 +1142,11 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2,x3,y3,x4,y4
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3);r7=rad2*rad2*rad3
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y;x4=x3*x;y4=y3*y
-     ggvec(1) = (12.0*x2*y2-3.0*y4)*ff1/r7                
-     ggvec(2) = (9.0*x*y3-6.0*x3*y)*ff1/r7
-     ggvec(3) = (2.0*x4-11.0*x2*y2+2.0*y4)*ff1/r7
-     ggvec(4) = (9.0*x3*y-6.0*x*y3)*ff1/r7
-     ggvec(5) = (12.0*x2*y2-3.0*x4)*ff1/r7
+     ggvec(1) = (12.0*x2*y2-3.0*y4)/r7                
+     ggvec(2) = (9.0*x*y3-6.0*x3*y)/r7
+     ggvec(3) = (2.0*x4-11.0*x2*y2+2.0*y4)/r7
+     ggvec(4) = (9.0*x3*y-6.0*x*y3)/r7
+     ggvec(5) = (12.0*x2*y2-3.0*x4)/r7
   end function abfs4
   function abfs3(rad,x,y) result(ggvec)     !! THREE
      real(rkind),intent(in) :: rad,x,y
@@ -1036,10 +1155,10 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2,x3,y3
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3);r5=rad3*rad2
      x2=x*x;y2=y*y;x3=x2*x;y3=y2*y
-     ggvec(1) = -3.0*y2*x*ff1/r5                 
-     ggvec(2) = (2.0*x2*y - y3)*ff1/r5
-     ggvec(3) = (2.0*x*y2 - x3)*ff1/r5
-     ggvec(4) = -3.0*x2*y*ff1/r5
+     ggvec(1) = -3.0*y2*x/r5                 
+     ggvec(2) = (2.0*x2*y - y3)/r5
+     ggvec(3) = (2.0*x*y2 - x3)/r5
+     ggvec(4) = -3.0*x2*y/r5
   end function abfs3
   function abfs2(rad,x,y) result(ggvec)     !! TWO AND ONE
      real(rkind),intent(in) :: rad,x,y
@@ -1048,11 +1167,11 @@ write(6,*) i,i1,"stopping because of max reduction limit",ii
      real(rkind) :: x2,y2
      rad2 = max(rad*rad,eta2);rad3=max(rad*rad*rad,eta3)
      x2=x*x;y2=y*y 
-     ggvec(1) = ff1*x/max(rad,eta2) 
-     ggvec(2) = ff1*y/max(rad,eta2)
-     ggvec(3) = y2*ff1/rad3    
-     ggvec(4) = -x*y*ff1/rad3
-     ggvec(5) = x2*ff1/rad3
+     ggvec(1) = x/max(rad,eta2) 
+     ggvec(2) = y/max(rad,eta2)
+     ggvec(3) = y2/rad3    
+     ggvec(4) = -x*y/rad3
+     ggvec(5) = x2/rad3
   end function abfs2
 !! ------------------------------------------------------------------------------------------------
 #elif ABF==2

@@ -179,20 +179,25 @@ flush(30);close(30)
      !! BC have irelation(i) = j, with j mirror particle in domain, proving periodic BCs
      integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror
      real(rkind) :: ns
+     integer(ikind) :: aspect_r
+
+     aspect_r = 1
+     ymax=ymax*dble(aspect_r);ymin=ymin*dble(aspect_r)
 
      time = 0.0d0
      dx = (xmax - xmin)/dble(nx+1);dv=dx*dx   ! set particle spacing based on particles per domain side length
      h0 = hovdx*dx;sup_size = ss*h0;h2=h0*h0;h3=h2*h0;ss2=sup_size*sup_size  !h, support 
      eta = 1.0d-8*h0;eta2 = eta*eta;eta3=eta*eta2
-     hmin = h0     
+     hmin = h0   
+     
+     xbcond = 1;ybcond=1  
 
      nss = ceiling(sup_size/dx) + 1
-     tmp_i = (nx+4*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
-     npfb = (nx+1)**2     
+     tmp_i = aspect_r*(nx+8*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger.. or 2*nss +1...
+     npfb = aspect_r*(nx+1)**2     
      nb=0;nb_n=0
      allocate(rp(tmp_i,dims))
      allocate(h(tmp_i));h=h0
-     allocate(irelation(npfb+1:tmp_i));irelation = 0     
 
      !! Create "fluid" particles
      call random_seed()
@@ -201,49 +206,24 @@ flush(30);close(30)
            tmp_i=(i-1)/(nx+1)+1
            tmp_j=i - (tmp_i-1)*(nx+1)
            call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
-           rp(i,1) = xmin + 0.5*dx + dble(tmp_i-1)*dx + ns
+           rp(i,2) = ymin + 0.5*dx + dble(tmp_i-1)*dx + ns
            call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
-           rp(i,2) = xmin + 0.5*dx + dble(tmp_j-1)*dx + ns
+           rp(i,1) = xmin + 0.5*dx + dble(tmp_j-1)*dx + ns
      end do
      !$OMP END PARALLEL DO
 
-     !! Create boundary particles
-     imp = npfb
-     do i=1,ceiling(sup_size/dx) + 1      ! side Boundary particles
-        do j=1,nx + 1
-           tmp_i = (i-1)*(nx+1) + j                                                    !! East boundary
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
-           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! West boundary
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
-           tmp_i = (j-1)*(nx+1) + i                                                    !! North boundary
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i             
-           tmp_i = npfb + 1 - (j-1)*(nx+1) - i                                         !! South boundary
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmin - xmax;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i      
-        end do
-     end do
-     do i=1,ceiling(sup_size/dx) + 1    ! corner Boundary particles
-        do j=1,ceiling(sup_size/dx) + 1
-           tmp_i = (i-1)*(nx+1) + j                                                    !! NE corner
-           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmax - xmin;irelation(imp) = tmp_i      
-           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! SW corner
-           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmin - xmax;irelation(imp) = tmp_i      
-           tmp_i = (j-1)*(nx+1) + nx + 2 - i                                           !! SE corner
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2)=rp(tmp_i,2) + xmin - xmax;irelation(imp) = tmp_i      
-           tmp_i = npfb - nx - 1 - (i-1)*(nx+1) + j                                    !! NW corner
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;irelation(imp) = tmp_i      
-        end do
-     end do
-     np = imp 
-     nmirror = np - npfb
-     
-     
+
+     call create_mirror_particles            
+
+     !write(6,*) minval(rp(1:np,1)),maxval(rp(1:np,1))
+     !write(6,*) minval(rp(1:np,2)),maxval(rp(1:np,2))
+
      call iteratively_shift(100)
-     deallocate(irelation)
-     call create_mirror_particles     
+     call create_mirror_particles    
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
-     allocate(u(np+2*nmirror)) 
-     allocate(v(np+2*nmirror));allocate(w(np+2*nmirror),ro(np+2*nmirror),Yspec(np+2*nmirror),E(np+2*nmirror))
+     allocate(u(tmp_i)) 
+     allocate(v(tmp_i));allocate(w(tmp_i),ro(tmp_i),Yspec(tmp_i),E(tmp_i))
      !$OMP PARALLEL DO 
      do i=1,npfb  
         u(i) = ftn(rp(i,1),rp(i,2))
@@ -261,6 +241,7 @@ do i=1,np
 write(30,*) rp(i,:)
 end do
 flush(30);close(30)
+
      return
   end subroutine create_particles_bperiodic
 !! ------------------------------------------------------------------------------------------------  
@@ -274,14 +255,15 @@ flush(30);close(30)
      h0 = hovdx*dx;sup_size = ss*h0;h2=h0*h0;h3=h2*h0;ss2=sup_size*sup_size  !h, support 
      eta = 1.0d-8*h0;eta2 = eta*eta;eta3=eta*eta2
      hmin = h0     
+     
+     xbcond =1;ybcond=2
 
      nss = ceiling(sup_size/dx) + 1
-     tmp_i = (nx+4*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
+     tmp_i = (nx+8*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
      npfb = (nx+1)**2     
      nb=0;nb_n=0
      allocate(rp(tmp_i,dims))
      allocate(h(tmp_i));h=h0
-     allocate(irelation(npfb+1:tmp_i));irelation = 0     
 
      !! Create "fluid" particles
      call random_seed()
@@ -296,43 +278,14 @@ flush(30);close(30)
      end do
      !$OMP END PARALLEL DO
 
-     !! Create boundary particles
-     imp = npfb
-     do i=1,ceiling(sup_size/dx) + 1      ! side Boundary particles
-        do j=1,nx + 1
-           tmp_i = (i-1)*(nx+1) + j                                                    !! East boundary
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
-           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! West boundary
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;rp(imp,2) = rp(tmp_i,2);irelation(imp) = tmp_i      
-           tmp_i = (j-1)*(nx+1) + i                                                    !! North boundary
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i             
-           tmp_i = npfb + 1 - (j-1)*(nx+1) - i                                         !! South boundary
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmin - xmax;rp(imp,1) = rp(tmp_i,1);irelation(imp) = tmp_i      
-        end do
-     end do
-     do i=1,ceiling(sup_size/dx) + 1    ! corner Boundary particles
-        do j=1,ceiling(sup_size/dx) + 1
-           tmp_i = (i-1)*(nx+1) + j                                                    !! NE corner
-           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmax - xmin;irelation(imp) = tmp_i      
-           tmp_i = npfb + 1 - (i-1)*(nx+1) - j                                         !! SW corner
-           imp = imp + 1;rp(imp,:) = rp(tmp_i,:) + xmin - xmax;irelation(imp) = tmp_i      
-           tmp_i = (j-1)*(nx+1) + nx + 2 - i                                           !! SE corner
-           imp = imp + 1;rp(imp,1) = rp(tmp_i,1) + xmax - xmin;rp(imp,2)=rp(tmp_i,2) + xmin - xmax;irelation(imp) = tmp_i      
-           tmp_i = npfb - nx - 1 - (i-1)*(nx+1) + j                                    !! NW corner
-           imp = imp + 1;rp(imp,2) = rp(tmp_i,2) + xmax - xmin;rp(imp,1) = rp(tmp_i,1) + xmin - xmax;irelation(imp) = tmp_i      
-        end do
-     end do
-     np = imp 
-     nmirror = np - npfb
-     
+     call create_mirror_particles
      
      call iteratively_shift(100)
-     deallocate(irelation)
-     call create_mirror_particles     
+     call create_mirror_particles    
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
-     allocate(u(np+2*nmirror)) 
-     allocate(v(np+2*nmirror));allocate(w(np+2*nmirror),ro(np+2*nmirror),Yspec(np+2*nmirror),E(np+2*nmirror))
+     allocate(u(tmp_i)) 
+     allocate(v(tmp_i));allocate(w(tmp_i),ro(tmp_i),Yspec(tmp_i),E(tmp_i))
      !$OMP PARALLEL DO 
      do i=1,npfb  
         u(i) = ftn(rp(i,1),rp(i,2))
@@ -345,11 +298,11 @@ flush(30);close(30)
      end do
      !$OMP END PARALLEL DO
 
-open(unit=30,file='fort.30')
-do i=1,np
-write(30,*) rp(i,:)
-end do
-flush(30);close(30)
+!open(unit=30,file='fort.30')
+!do i=1,np
+!write(30,*) rp(i,:)
+!end do
+!flush(30);close(30)
      return
   end subroutine create_particles_RT 
 !! ------------------------------------------------------------------------------------------------
@@ -401,9 +354,8 @@ flush(30);close(30)
      end do
      npfb = i;dx=dx0
      
-         
+     call create_mirror_particles         
      call iteratively_shift(50)
-     deallocate(irelation)
      call create_mirror_particles
      
          
@@ -477,7 +429,6 @@ flush(30);close(30)
   
      !! Low order shifting loop
      do ll=1,kk
-        if(allocated(irelation)) deallocate(irelation)     
         call create_mirror_particles       
         call find_neighbours
                 
@@ -534,15 +485,15 @@ flush(30);close(30)
      !! -----:  irelation(j)=i where i is the parent-node of node j
     real(rkind),dimension(2) :: rcorn
     real(rkind) :: cdist
-    integer(ikind) :: i,j,imp,k,xbcond,ybcond
+    integer(ikind) :: i,j,imp,k
     integer(ikind) :: nmirror,nmirror_esti
       
     nmirror_esti = npfb*4  ! Estimate for max number of mirrors
-    allocate(irelation(npfb+1:npfb+nmirror_esti))      
+    if(allocated(irelation)) deallocate(irelation,vrelation)
+    allocate(irelation(npfb+1:npfb+nmirror_esti)) 
+    allocate(vrelation(npfb+1:npfb+nmirror_esti))     
     imp = 0     
          
-    !! Periodic and symmetric conditions    
-    xbcond = 1;ybcond=1
 
     do i=1,npfb
        
@@ -551,12 +502,12 @@ flush(30);close(30)
           if(xbcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2)=rp(i,2)
           else if(xbcond.eq.2)then ! Symmetric
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 2
              rp(k,1) = 2.0d0*xmin - rp(i,1);rp(k,2)=rp(i,2)
           end if
        end if   
@@ -565,12 +516,12 @@ flush(30);close(30)
           if(xbcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2)=rp(i,2)
           else if(xbcond.eq.2)then ! Symmetric
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 2
              rp(k,1) = 2.0d0*xmax - rp(i,1);rp(k,2)=rp(i,2)
           end if
        end if 
@@ -580,12 +531,12 @@ flush(30);close(30)
           if(ybcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1);rp(k,2)=rp(i,2) + ymax - ymin
           else if(ybcond.eq.2)then ! Symmetric
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 3
              rp(k,1) = rp(i,1);rp(k,2)= 2.0d0*ymin - rp(i,2)
           end if
        end if   
@@ -594,12 +545,12 @@ flush(30);close(30)
           if(ybcond.eq.1)then ! Periodic
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1);rp(k,2)=rp(i,2) - ymax + ymin
           else if(ybcond.eq.2)then ! Symmetric
              imp = imp + 1
              k = npfb + imp
-             irelation(k)=i
+             irelation(k)=i;vrelation(k) = 3
              rp(k,1) = rp(i,1);rp(k,2)= 2.0d0*ymax - rp(i,2)
           end if
        end if                
@@ -613,12 +564,16 @@ flush(30);close(30)
              irelation(k)=i
              if(xbcond.eq.1.and.ybcond.eq.1)then
                 rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2) = rp(i,2) + ymax - ymin
+                vrelation(k)=1                
              else if(xbcond.eq.2.and.ybcond.eq.1)then
                 rp(k,1) = 2.0d0*xmin - rp(i,1);rp(k,2) = rp(i,2) + ymax - ymin
+                vrelation(k)=2                
              else if(xbcond.eq.1.and.ybcond.eq.2)then
                 rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2) = 2.0d0*ymin - rp(i,2)
+                vrelation(k)=3                
              else if(xbcond.eq.2.and.ybcond.eq.2)then
                 rp(k,1) = 2.0d0*xmin - rp(i,1);rp(k,2) = 2.0d0*ymin - rp(i,2)
+                vrelation(k)=4                
              end if
           end if
        end if
@@ -632,12 +587,16 @@ flush(30);close(30)
              irelation(k)=i
              if(xbcond.eq.1.and.ybcond.eq.1)then
                 rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2) = rp(i,2) + ymax - ymin
+                vrelation(k)=1                
              else if(xbcond.eq.2.and.ybcond.eq.1)then
                 rp(k,1) = 2.0d0*xmax - rp(i,1);rp(k,2) = rp(i,2) + ymax - ymin
+                vrelation(k)=2                
              else if(xbcond.eq.1.and.ybcond.eq.2)then
                 rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2) = 2.0d0*ymin - rp(i,2)
+                vrelation(k)=3                
              else if(xbcond.eq.2.and.ybcond.eq.2)then
                 rp(k,1) = 2.0d0*xmax - rp(i,1);rp(k,2) = 2.0d0*ymin - rp(i,2)
+                vrelation(k)=4                
              end if
           end if
        end if
@@ -651,12 +610,16 @@ flush(30);close(30)
              irelation(k)=i
              if(xbcond.eq.1.and.ybcond.eq.1)then
                 rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2) = rp(i,2) - ymax + ymin
+                vrelation(k)=1                
              else if(xbcond.eq.2.and.ybcond.eq.1)then
                 rp(k,1) = 2.0d0*xmin - rp(i,1);rp(k,2) = rp(i,2) - ymax + ymin
+                vrelation(k)=2                
              else if(xbcond.eq.1.and.ybcond.eq.2)then
                 rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2) = 2.0d0*ymax - rp(i,2)
+                vrelation(k)=3                
              else if(xbcond.eq.2.and.ybcond.eq.2)then
                 rp(k,1) = 2.0d0*xmin - rp(i,1);rp(k,2) = 2.0d0*ymax - rp(i,2)
+                vrelation(k)=4                
              end if
           end if
        end if
@@ -670,12 +633,16 @@ flush(30);close(30)
              irelation(k)=i
              if(xbcond.eq.1.and.ybcond.eq.1)then
                 rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2) = rp(i,2) - ymax + ymin
+                vrelation(k)=1                
              else if(xbcond.eq.2.and.ybcond.eq.1)then
                 rp(k,1) = 2.0d0*xmax - rp(i,1);rp(k,2) = rp(i,2) - ymax + ymin
+                vrelation(k)=2                
              else if(xbcond.eq.1.and.ybcond.eq.2)then
                 rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2) = 2.0d0*ymax - rp(i,2)
+                vrelation(k)=3                
              else if(xbcond.eq.2.and.ybcond.eq.2)then
                 rp(k,1) = 2.0d0*xmax - rp(i,1);rp(k,2) = 2.0d0*ymax - rp(i,2)
+                vrelation(k)=4                
              end if
           end if
        end if       
@@ -685,7 +652,39 @@ flush(30);close(30)
     np = npfb + nmirror      
    
     return
-  end subroutine create_mirror_particles  
+  end subroutine create_mirror_particles
+!! ------------------------------------------------------------------------------------------------      
+  subroutine reapply_mirror_bcs
+     integer(ikind) :: i,j
+    
+    
+     !! Update properties in the boundary particles
+     !$OMP PARALLEL DO PRIVATE(i)
+     do j=npfb+1,np
+        i = irelation(j)
+        ro(j) = ro(i)
+        if(vrelation(j).eq.1)then
+           u(j) = u(i)
+           v(j) = v(i) 
+        else if(vrelation(j).eq.2)then
+           u(j) = -u(i)
+           v(j) = v(i)        
+        else if(vrelation(j).eq.3)then
+           u(j) = u(i)
+           v(j) = -v(i) 
+        else if(vrelation(j).eq.4)then
+           u(j) = -u(i)
+           v(j) = -v(i) 
+        end if   
+        
+        Yspec(j)=Yspec(i)
+        if(allocated(E)) E(j)=E(i)
+     end do
+     !$OMP END PARALLEL DO     
+
+
+     return
+  end subroutine reapply_mirror_bcs  
 !! ------------------------------------------------------------------------------------------------  
 !! ---------------------------------
   function vardx(dx0,dr) result(tmp)   !! This function sets how dx changes with radius...

@@ -78,9 +78,9 @@ contains
      !! NB. we use large cells (2.0d0*sup_size) to account for nodes shifted from stencil centre
      
      !! Set the support size
-     sup_size = ss*maxval(h(1:npfb))
+     sup_size = 1.2d0*ss*maxval(h(1:npfb))
      
-     unoss = 1.0d0/(sup_size)
+     unoss = 1.0d0/(sup_size)      
      xmaxt = xmax + sup_size;xmint = xmin - sup_size
      ymaxt = ymax + sup_size;ymint = ymin - sup_size
      
@@ -278,7 +278,7 @@ contains
        end do
        
        !! Now sort by value of rij2
-       call quicksort_neighbours(i,rij2,1,ij_count(i))       
+!       call quicksort_neighbours(i,rij2,1,ij_count(i))       
     
     
     end do

@@ -371,14 +371,7 @@ contains
         end if                 
      end do
      
-     do j=npfb+1,np
-        i=irelation(j)
-        u(j) = u(i)
-        v(j) = v(i)
-        ro(j) = ro(i)
-        Yspec(j) = Yspec(i)
-        E(j) = E(i)
-     end do
+     call reapply_mirror_bcs
        
      return
   end subroutine set_analytic_Yspec 
@@ -410,24 +403,6 @@ contains
      return
   end subroutine set_tstep  
 !! ------------------------------------------------------------------------------------------------
-  subroutine reapply_mirror_bcs
-     integer(ikind) :: i,j
-     !! Update phi in the boundary particles
-
-     !$OMP PARALLEL DO PRIVATE(j)
-     do i=npfb+1,np
-        j = irelation(i)
-        u(i) = u(j)
-        v(i) = v(j) 
-        ro(i) = ro(j)
-        Yspec(i) = Yspec(j)
-        E(i) = E(j)
-     end do
-     !$OMP END PARALLEL DO
-
-     return
-  end subroutine reapply_mirror_bcs
-!! ------------------------------------------------------------------------------------------------
   subroutine rebuild_particle_maps_etc
      use nodes
      use neighbours
@@ -437,15 +412,24 @@ contains
      !! Replace particles which have left domain
      !$omp parallel do
      do i=1,npfb
-        if(rp(i,1).le.xmin) rp(i,1) = rp(i,1) + (xmax-xmin)
-        if(rp(i,1).gt.xmax) rp(i,1) = rp(i,1) - (xmax-xmin)
-        if(rp(i,2).le.ymin) rp(i,2) = rp(i,2) + (ymax-ymin)
-        if(rp(i,2).gt.ymax) rp(i,2) = rp(i,2) - (ymax-ymin)
+        if(xbcond.eq.1) then
+           if(rp(i,1).le.xmin) rp(i,1) = rp(i,1) + (xmax-xmin)
+           if(rp(i,1).gt.xmax) rp(i,1) = rp(i,1) - (xmax-xmin)
+        else if(xbcond.eq.2) then
+           if(rp(i,1).le.xmin) rp(i,1) = rp(i,1) + two*(xmin-rp(i,1))
+           if(rp(i,1).gt.xmax) rp(i,1) = rp(i,1) - two*(rp(i,1)-xmax)
+        end if
+        if(ybcond.eq.1) then
+           if(rp(i,2).le.ymin) rp(i,2) = rp(i,2) + (ymax-ymin)
+           if(rp(i,2).gt.ymax) rp(i,2) = rp(i,2) - (ymax-ymin)
+        else if(ybcond.eq.2) then
+           if(rp(i,2).le.ymin) rp(i,2) = rp(i,2) + two*(ymin-rp(i,2))
+           if(rp(i,2).gt.ymax) rp(i,2) = rp(i,2) - two*(rp(i,2)-ymax)           
+        end if              
      end do
      !$omp end parallel do
    
      !! Rebuild mirrors
-     deallocate(irelation) 
      call create_mirror_particles
   
      deallocate(ij_count,ij_link)
