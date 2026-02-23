@@ -480,11 +480,9 @@ contains
 
      end do
      !$OMP END PARALLEL DO
-         
-         
-!     write(6,*) 1.0d0/(cnum/dble(npfb))
-
-     deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec)     
+     deallocate(amatGx,amatGy,amatL,bvecGx,bvecGy,bvecL,gvec,xvec)          
+     
+   
      return
   end subroutine calc_interparticle_weights_nofilt_o2 
 !! ------------------------------------------------------------------------------------------------  
@@ -534,7 +532,7 @@ contains
            rad = sqrt(x*x + y*y);qq=rad/hh
            rad = max(rad,hh*1e-5)
 
-           ff1 = fac(qq)/(h0*hovdx*hovdx)
+           ff1 = fac(qq)/(hh*hovdx*hovdx)
            gradw(:) = -rij(:)*ff1/rad   !uncorrected kernel gradient           
 
            !! Bonet & Lok correction tensor

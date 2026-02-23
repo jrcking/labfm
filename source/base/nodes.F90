@@ -178,7 +178,9 @@ flush(30);close(30)
      !! Initialise variable u to an analytic function
      !! BC have irelation(i) = j, with j mirror particle in domain, proving periodic BCs
      integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror
-     real(rkind) :: ns
+     real(rkind) :: ns,x,y
+     real(rkind),dimension(:),allocatable :: htmp
+     real(rkind),dimension(:,:),allocatable :: rptmp
      integer(ikind) :: aspect_r
 
      aspect_r = 1
@@ -212,13 +214,29 @@ flush(30);close(30)
      end do
      !$OMP END PARALLEL DO
 
+!! Remove a circle...     
+#if cyl==1
+allocate(htmp(npfb),rptmp(npfb,2))
+htmp = h(1:npfb);rptmp=rp(1:npfb,:)     
+h=zero;rp=zero     
+tmp_j = npfb
+npfb = 0
+do i=1,tmp_j
+    x=rptmp(i,1);y=rptmp(i,2)
+    if(x*x+y*y.ge.cyl_radius**2.0d0) then
+       npfb = npfb + 1
+       rp(npfb,:) = rptmp(i,:)
+       h(npfb) = htmp(i)
+    end if
+end do
+#endif
 
      call create_mirror_particles            
 
      !write(6,*) minval(rp(1:np,1)),maxval(rp(1:np,1))
      !write(6,*) minval(rp(1:np,2)),maxval(rp(1:np,2))
 
-     call iteratively_shift(100)
+     call iteratively_shift(200)
      call create_mirror_particles    
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
@@ -247,8 +265,13 @@ flush(30);close(30)
 !! ------------------------------------------------------------------------------------------------  
   subroutine create_particles_RT
      !! Create particles for Rayleigh-Taylor flow. L-R is periodic. U-D is symmetric
-     integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror
-     real(rkind) :: ns
+     integer(ikind) :: i,tmp_i,tmp_j,j,imp,nss,nmirror,aspect_r
+     real(rkind) :: ns,x,y
+     real(rkind),dimension(:,:),allocatable :: rptmp
+     real(rkind),dimension(:),allocatable :: htmp
+
+     aspect_r = 2
+     ymax=ymax*dble(aspect_r);ymin=ymin*dble(aspect_r)
 
      time = 0.0d0
      dx = (xmax - xmin)/dble(nx+1);dv=dx*dx   ! set particle spacing based on particles per domain side length
@@ -259,8 +282,8 @@ flush(30);close(30)
      xbcond =1;ybcond=2
 
      nss = ceiling(sup_size/dx) + 1
-     tmp_i = (nx+8*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support... or 2*nss +1...
-     npfb = (nx+1)**2     
+     tmp_i = aspect_r*(nx+8*nss + 1)**2  !! np should equal this, if h=2dx. make the 11 bigger if bigger support..
+     npfb = aspect_r*(nx+1)**2     
      nb=0;nb_n=0
      allocate(rp(tmp_i,dims))
      allocate(h(tmp_i));h=h0
@@ -272,19 +295,36 @@ flush(30);close(30)
            tmp_i=(i-1)/(nx+1)+1
            tmp_j=i - (tmp_i-1)*(nx+1)
            call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
-           rp(i,1) = xmin + 0.5*dx + dble(tmp_i-1)*dx + ns
+           rp(i,2) = ymin + 0.5*dx + dble(tmp_i-1)*dx + ns
            call random_number(ns);ns = (ns - 0.5)*dx*tmp_noise
-           rp(i,2) = xmin + 0.5*dx + dble(tmp_j-1)*dx + ns
+           rp(i,1) = xmin + 0.5*dx + dble(tmp_j-1)*dx + ns           
      end do
      !$OMP END PARALLEL DO
 
-     call create_mirror_particles
-     
-     call iteratively_shift(100)
+!! Remove a circle...     
+#if cyl==1
+allocate(htmp(npfb),rptmp(npfb,2))
+htmp = h(1:npfb);rptmp=rp(1:npfb,:)     
+h=zero;rp=zero     
+tmp_j = npfb
+npfb = 0
+do i=1,tmp_j
+    x=rptmp(i,1);y=rptmp(i,2)
+    if(x*x+y*y.ge.cyl_radius**2.0d0) then
+       npfb = npfb + 1
+       rp(npfb,:) = rptmp(i,:)
+       h(npfb) = htmp(i)
+    end if
+end do
+#endif
+
+
+     call create_mirror_particles     
+     call iteratively_shift(100)         
      call create_mirror_particles    
     
      !! Set u(i) to a given differentiable function - this is set in sphtools
-     allocate(u(tmp_i)) 
+     allocate(u(tmp_i));u = zero
      allocate(v(tmp_i));allocate(w(tmp_i),ro(tmp_i),Yspec(tmp_i),E(tmp_i))
      !$OMP PARALLEL DO 
      do i=1,npfb  
@@ -386,7 +426,7 @@ flush(30);close(30)
   subroutine output_uv(n_out)
      !! Little subroutine to write out field variables. 
      integer(ikind),intent(in) :: n_out
-     integer(ikind) :: i,j,k
+     integer(ikind) :: i,j,k,np_out
      character(70) :: fname
 
      !! set the name of the file...
@@ -403,26 +443,28 @@ flush(30);close(30)
      open(unit = 20,file=fname)  
 !     write(20,*) nx+1,dx,xmin,xmin,0      !! Write parameters
 
+     np_out = npfb
 
-     do i=1,npfb
-        write(20,*) rp(i,1),rp(i,2),h(i)/h0,u(i),v(i),ro(i),Yspec(i),E(i)
+     do i=1,np_out
+        write(20,*) rp(i,1),rp(i,2),h(i)/h0,u(i),v(i),ro(i),Yspec(i),E(i),w(i)
      end do
      flush(20)
      close(20)
 
-     write(13,*) time,npfb,n_out,0.1
+     write(13,*) time,np_out,n_out,0.1
      flush(13)
      return
   end subroutine output_uv
 !! ------------------------------------------------------------------------------------------------
   subroutine iteratively_shift(kk)
      use neighbours
+     use sphtools
      !! Subroutine to create a nice shifted distribution...
      integer(ikind),intent(in) :: kk
      integer(ikind) :: ll,i,j,k
      real(rkind),dimension(dims) :: rij,gradw,dr_tmp
      real(rkind),dimension(:,:),allocatable :: dr
-     real(rkind) :: rad,tmp,qq
+     real(rkind) :: rad,tmp,qq,htmp
      real(rkind) :: qkd_mag,ns,drmag
     
      allocate(dr(npfb,dims))
@@ -431,30 +473,42 @@ flush(30);close(30)
      do ll=1,kk
         call create_mirror_particles       
         call find_neighbours
-                
 
-        !! Find shifting vector...
-        !$OMP PARALLEL DO PRIVATE(k,j,rij,rad,qq,gradw,dr_tmp)
+
+        !! Dynamically evolve smoothing length to satisfy partition of unity
+#if ale==1        
         do i=nb+1,npfb
-           qkd_mag = 1.0d-1*h0!(i)
-           dr_tmp = 0.0d0
+           htmp = zero
            do k=1,ij_count(i)
               j=ij_link(i,k)
-              rij = rp(i,:)-rp(j,:);rad=sqrt(dot_product(rij,rij));qq=hovdx*rad/h(i)
+              rij=rp(i,:)-rp(j,:);rad=sqrt(dot_product(rij,rij));qq=rad/h(i)
+              htmp = htmp + wab(qq)/(hovdx*hovdx)           
+           end do
+           qq = one - 0.05d0*(htmp - one)
+           h(i) = qq*h(i) !! h relaxes towards PARTITION OF UNITY
+        end do
+#endif                
+       
+        !! Add a small shifting term using same form of shifting as in swarming algorithm
+        !$OMP PARALLEL DO PRIVATE(k,j,rij,rad,qq,gradw,dr_tmp)        
+        do i=nb+1,npfb                
+           qkd_mag = minval(h(1:npfb))*0.2d0         
+           dr_tmp = zero
+           do k=1,ij_count(i)
+              j=ij_link(i,k)
+              rij=rp(i,:)-rp(j,:);rad=sqrt(dot_product(rij,rij));qq=rad/h(i)
+              gradw = -qkd_mag*((one-half*qq))*rij(:)/max(rad,epsilon(rad))
+              if(qq.gt.two) gradw(:)=zero
 
-              gradw(:) = qkd_mag*(0.5d0*qq - 1.0d0)*rij(:)/max(rad,epsilon(rad))
-              if(qq.gt.2.0) gradw(:) = 0.0d0
               dr_tmp = dr_tmp + gradw(:)
            end do
            dr(i,:) = dr_tmp
-           
            rad = sqrt(dot_product(dr_tmp,dr_tmp))
            if(rad.gt.0.1d0*h0) then
               dr(i,:) = dr_tmp*0.1d0*h0/rad
-           end if
-           
-        end do
-        !$OMP END PARALLEL DO
+           end if           
+        end do    
+        !$omp end parallel do    
         
         !! Move particles...
         !$OMP PARALLEL DO
@@ -480,11 +534,11 @@ flush(30);close(30)
 !! ------------------------------------------------------------------------------------------------  
   subroutine create_mirror_particles
      !! Subroutine loops over all nodes, and creates mirrors for those
-     !! near periodic or symmetric domain limits, for a square domain.
+     !! near periodic or Wall domain limits, for a square domain.
      !! -- NB:
      !! -----:  irelation(j)=i where i is the parent-node of node j
     real(rkind),dimension(2) :: rcorn
-    real(rkind) :: cdist
+    real(rkind) :: cdist,x,y,newr
     integer(ikind) :: i,j,imp,k
     integer(ikind) :: nmirror,nmirror_esti
       
@@ -504,7 +558,7 @@ flush(30);close(30)
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1) + xmax - xmin;rp(k,2)=rp(i,2)
-          else if(xbcond.eq.2)then ! Symmetric
+          else if(xbcond.eq.2)then ! Wall
              imp = imp + 1
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 2
@@ -518,7 +572,7 @@ flush(30);close(30)
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1) - xmax + xmin;rp(k,2)=rp(i,2)
-          else if(xbcond.eq.2)then ! Symmetric
+          else if(xbcond.eq.2)then ! Wall
              imp = imp + 1
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 2
@@ -533,7 +587,7 @@ flush(30);close(30)
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1);rp(k,2)=rp(i,2) + ymax - ymin
-          else if(ybcond.eq.2)then ! Symmetric
+          else if(ybcond.eq.2)then ! Wall
              imp = imp + 1
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 3
@@ -547,7 +601,7 @@ flush(30);close(30)
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 1
              rp(k,1) = rp(i,1);rp(k,2)=rp(i,2) - ymax + ymin
-          else if(ybcond.eq.2)then ! Symmetric
+          else if(ybcond.eq.2)then ! Wall
              imp = imp + 1
              k = npfb + imp
              irelation(k)=i;vrelation(k) = 3
@@ -645,7 +699,19 @@ flush(30);close(30)
                 vrelation(k)=4                
              end if
           end if
-       end if       
+       end if 
+       
+#if cyl==1       
+       x=rp(i,1);y=rp(i,2)
+       cdist = sqrt(x*x + y*y) - cyl_radius
+       if(cdist.le.ss*h(i)) then !! Close to circle
+          imp = imp + 1
+          k = npfb + imp
+          irelation(k)=i          
+          rp(k,:) = (cyl_radius-cdist)*rp(i,:)/(cyl_radius+cdist);vrelation(k) = 4
+       end if
+#endif       
+             
     end do       
               
     nmirror = imp
@@ -668,9 +734,9 @@ flush(30);close(30)
            v(j) = v(i) 
         else if(vrelation(j).eq.2)then
            u(j) = -u(i)
-           v(j) = v(i)        
+           v(j) = -v(i)        
         else if(vrelation(j).eq.3)then
-           u(j) = u(i)
+           u(j) = -u(i)
            v(j) = -v(i) 
         else if(vrelation(j).eq.4)then
            u(j) = -u(i)
@@ -679,6 +745,7 @@ flush(30);close(30)
         
         Yspec(j)=Yspec(i)
         if(allocated(E)) E(j)=E(i)
+        h(j) = h(i)
      end do
      !$OMP END PARALLEL DO     
 

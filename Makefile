@@ -9,6 +9,21 @@ ifeq ($(ob),1)
 FFLAGS += -Dob
 endif
 
+#ale
+ifeq ($(ale),1)
+FFLAGS += -Dale=1
+endif
+
+# a cylinder obstacle at the origin
+ifeq ($(cyl),1)
+FFLAGS += -Dcyl=1
+endif
+
+# A line of high-resolution
+ifeq ($(line),1)
+FFLAGS += -Dline=1
+endif
+
 ## specify order between 2 and 12
 ifeq ($(order),2)
 FFLAGS += -Dorder=2
@@ -55,8 +70,8 @@ OBJ_FILES += obj/nodes.o obj/moments.o
 OBJ_FILES += obj/derivatives.o
 OBJ_FILES += obj/basic_convergence_studies.o  
 OBJ_FILES += obj/filtering.o
-OBJ_FILES += obj/burgers_equation.o 
-OBJ_FILES += obj/ns_equations.o
+OBJ_FILES += obj/burgers_equation.o obj/td_swarm.o
+OBJ_FILES += obj/ns_equations.o obj/ns_equations_cylinder.o obj/ns_equations_tg.o
 OBJ_FILES += obj/swarm.o
 OBJ_FILES += $(foreach sdir,$(SRC_DIR),$(patsubst $(sdir)/%.F90,obj/%.o,$(wildcard $(sdir)/*.F90)))
 

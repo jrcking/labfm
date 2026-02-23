@@ -9,6 +9,8 @@ program labfm
   use basic_convergence_studies
   use burgers_equation
   use ns_equations
+  use ns_equations_cylinder 
+  use ns_equations_tg
   use swarm
   use filtering
   implicit none
@@ -18,7 +20,7 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 60!! 1/2 the initial resolution
+  nx = 20!! 1/2 the initial resolution
   do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
@@ -51,9 +53,10 @@ program labfm
 !     call vortex_resolve_test
 !     call stability_test
 !     call solve_burgers_equation
-     call solve_ns_equations
+!     call solve_ns_equations
+     call solve_ns_equations_cylinder
+!     call solve_ns_equations_tg
 !     call swarm_test
-!      call swarm_navier_stokes
 
      call output_uv(k)
 
@@ -95,13 +98,13 @@ subroutine initial_setup
 #elif order==3
   hovdx = 1.4d0
 #elif order==4
-  hovdx = 1.4d0
+  hovdx = 1.8d0
 #elif order==5
   hovdx = 2.0d0
 #elif order==6
-  hovdx = 1.8d0
+  hovdx = 2.5d0
 #elif order==7
-  hovdx = 2.4d0
+  hovdx = 1.8d0
 #elif order==8
   hovdx = 2.4d0  !2.7d0 for variable resolution
 #elif order==9

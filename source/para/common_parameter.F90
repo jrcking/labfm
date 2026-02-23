@@ -42,5 +42,7 @@ module common_parameter
   real(rkind),parameter :: rk3_4s_2r_c4=one
   real(rkind),dimension(4),parameter :: rk3_4s_2r_c=(/rk3_4s_2r_c1,rk3_4s_2r_c2,rk3_4s_2r_c3,rk3_4s_2r_c4/)   
   
+  !! Size of a cylinder obstacle
+  real(rkind),parameter :: cyl_radius = 0.1d0
 
 end module common_parameter

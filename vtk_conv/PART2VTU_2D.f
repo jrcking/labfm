@@ -36,7 +36,7 @@ c       initial data for SPH models                                             
       CHARACTER(LEN=1)  :: TAB,DQ
       
       real xp(np_max),zp(np_max),up(np_max),vp(np_max),ro(np_max)
-      real Y(np_max),E(np_max),h(np_max)
+      real Y(np_max),E(np_max),h(np_max),wp(np_max)
       real time(i_PART_counter_max), DT(i_PART_counter_max)
       integer np_all(i_PART_counter_max), IT(i_PART_counter_max)
       real  DT1(i_PART_counter_max),DT2(i_PART_counter_max)  
@@ -137,7 +137,7 @@ c       % READ POSITION, VELOCITY, DENSITY, PRESSURE, MASS AND VORTICITY DATA FO
          np = np_all(iframe)
          do i=1,np
              read(23,*,end=300) xp(i),zp(i),h(i),up(i),vp(i),
-     &                          ro(i),Y(i),E(i)
+     &                          ro(i),Y(i),E(i),wp(i)
             npp=npp+1
          enddo
 300    np=npp
@@ -210,6 +210,16 @@ c       % WRITE alpha DATA
         enddo
         string3 = '    </DataArray>'
         write(24,202) string3
+        
+c       % WRITE vorticity DATA        
+        string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D
+     &Q//'Vorticity'//DQ//' format='//DQ//'ascii'//DQ//'>'
+        write(24,202)string1
+        do ii=1,np
+          write(24,*)wp(ii)
+        enddo
+        string3 = '    </DataArray>'
+        write(24,202) string3        
 
 c       % WRITE E DATA        
         string1 = '    <DataArray type='//DQ//'Float32'//DQ//' Name='//D

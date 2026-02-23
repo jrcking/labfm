@@ -7,6 +7,9 @@ module burgers_equation
   use derivatives
   use omp_lib
   implicit none
+  
+  private
+  public :: solve_burgers_equation
 
   !! Solve a Burgers equation. Note, because it's a bit messy, we won't use the generic time integration 
   !! utilities here, but specific burgers ones...

@@ -1,4 +1,4 @@
-module ns_equations
+module ns_equations_cylinder
   use kind_parameters
   use common_parameter
   use common_2d
@@ -9,15 +9,17 @@ module ns_equations
   implicit none
   
   private
-  public :: solve_ns_equations
+  public :: solve_ns_equations_cylinder
   
+
   !! Solve Navier-Stokes equations in weakly-compressible form.
   !! Currently only suitable for periodic domains
   
   real(rkind),dimension(:),allocatable :: RHS_ro,RHS_u,RHS_v,RHS_Y
+  real(rkind),dimension(:),allocatable :: vort
   
   real(rkind),parameter :: Ma=0.1d0
-  real(rkind),parameter :: Ra = 1.0d6
+  real(rkind),parameter :: Ra = 1.0d2
   real(rkind),parameter :: Pr = 1.0d0
   real(rkind),parameter :: output_period=0.01d0
   real(rkind),parameter :: Da = 1.0d0
@@ -32,18 +34,23 @@ module ns_equations
   
   real(rkind),dimension(:,:),allocatable :: utran
   integer(ikind),parameter :: move_every_nsteps=1
-  real(rkind),parameter :: alpha=0.5d0  !! Narrowness parameter for mapping Y->Z  
+  real(rkind),parameter :: alpha=0.5d0  !! Narrowness parameter for mapping Y->Z    
+  real(rkind),parameter :: dltah0 = three
 
 contains
-  subroutine solve_ns_equations
+  subroutine solve_ns_equations_cylinder
      integer(ikind) :: i,j,k,n_out
      real(rkind) :: tmp,x,y
-     real(rkind) :: l2_tmp,l2v_tmp,vol_local
+     real(rkind) :: l2_tmp,tot_vol,vol_local,meanu,meanv
+
+     !! Simulation time     
+     time_end = 200.0d0
      
      !! Initialise time, u and v
      n_out = 0  
      call set_initial_fields
-     call rebuild_particle_maps_etc              
+     call rebuild_particle_maps_etc   
+     allocate(vort(npfb))           
   
      call reapply_mirror_bcs     
 
@@ -57,36 +64,67 @@ contains
 
           n_out = n_out + 1
           call output_uv(n_out)
-          write(6,*) itime,100.0*time/time_end,sqrt(maxval(u(1:npfb)**two + v(1:npfb)**two)), &
+          write(6,*) itime,time,sqrt(maxval(u(1:npfb)**two + v(1:npfb)**two)), &
                      maxval(h(1:npfb))/h0,minval(h(1:npfb))/h0
+
+          !! Save something to file                       
+          l2_tmp = zero
+          tot_vol = zero
+          meanu = zero
+          meanv = zero
+          do i=1,npfb
+             vol_local = h(i)*h(i)/(hovdx*hovdx)  !! Local particle volume
+             l2_tmp = l2_tmp + ro(i)*(u(i)*u(i) + v(i)*v(i))*vol_local
+             tot_vol = tot_vol + vol_local
+             meanu = meanu + u(i)*vol_local
+             meanv = meanv + v(i)*v(i)*vol_local
+          end do
+          l2_tmp = half*l2_tmp/tot_vol
+          !! Volume averaged K.E.
+          meanu = meanu/tot_vol
+          meanv = sqrt(meanv/tot_vol)
+          !! Iteration time, dt, mean kinetic energy,mean velocity components
+          write(212,*) itime,time,dt,l2_tmp,meanu,meanv,tot_vol
+          flush(212)
+
+          if(time.gt.4.0d0) then
+             write(313,*) rp(1:npfb,1)
+             write(314,*) rp(1:npfb,2)
+             write(315,*) h(1:npfb)
+             write(316,*) u(1:npfb)
+             write(317,*) v(1:npfb)
+             write(318,*) utran(1:npfb,1)
+             write(319,*) utran(1:npfb,2)
+             flush(313)
+             flush(314)
+             flush(315)
+             flush(316)
+             flush(317)
+             flush(318)
+             flush(319)                                                                 
+           
+          end if
+
+
         end if
         
         call set_tstep
          
         call step_rk3
+        
+                
       
-        !! Save something to file                       
-        l2_tmp = zero
-        l2v_tmp = zero
-        do i=1,npfb
-           vol_local = h(i)*h(i)/(hovdx*hovdx)  !! Local particle volume
-           l2_tmp = l2_tmp + (u(i)*u(i) + v(i)*v(i))*vol_local
-           l2v_tmp = l2v_tmp + vol_local
-        end do
-        l2_tmp = half*l2_tmp/l2v_tmp                 !! Volume averaged K.E.
-        write(212,*) itime,time,dt,l2_tmp,l2v_tmp    !! Total volume
-        flush(212)
- 
      end do
    
-     !! Calculate the L2norms
+     !! Output some velocity profiles
+     call output_slices
 
      
      !! Output to screen and file
 
       
      stop
-  end subroutine solve_ns_equations
+  end subroutine solve_ns_equations_cylinder
 !! ------------------------------------------------------------------------------------------------
   subroutine update_utran    
      integer(ikind) :: i,j,k
@@ -94,32 +132,28 @@ contains
      real(rkind) :: qkd_mag,rad,qq
      real(rkind),dimension(dims) :: dstmp,rij,gradkernel
      real(rkind),dimension(:,:),allocatable :: gradE,gradY
-     real(rkind),dimension(:),allocatable :: lapY
      real(rkind),parameter :: swarm_rate = dble(move_every_nsteps)*one
      real(rkind) :: max_vel,norm_gradY
 
      !! Set E=(4Y(1-Y))**(1/4)
      max_vel = zero
      do i=1,np
-        
-    
-       
-        E(i) = (4.0d0*Yspec(i)*(one-Yspec(i)))**alpha
 
-#if cyl==1
+        E(i) = (4.0d0*Yspec(i)*(one-Yspec(i)))**alpha
+#if cyl==1        
         !! Hard-code a small highly resolved clump...
         x=rp(i,1);y=rp(i,2);rad=sqrt(x*x+y*y)
-        qq = half*(tanh((rad-cyl_radius)/0.04) +one)
-        htmp = (4.0d0*qq*(one-qq))**alpha
+        qq = half*(tanh((rad-cyl_radius)/(dltah0*h0)) +one)
+        htmp = (4.0d0*qq*(one-qq))**alpha           
         E(i) = max(E(i),htmp)
 #endif      
 #if line==1
         x=rp(i,1);
-        qq = half*(tanh(x/0.04)+one)
+        qq = half*(tanh(x/(dltah0*h0))+one)
         htmp = (4.0d0*qq*(one-qq))**alpha
         E(i) = max(E(i),htmp)  
-#endif    
-        
+#endif        
+  
         max_vel = max(max_vel,u(i)*u(i) + v(i)*v(i))
      end do
      max_vel = sqrt(max_vel)
@@ -130,12 +164,7 @@ contains
      
      !! Calculate the gradient of Y
      allocate(gradY(npfb,dims));gradY=zero
-     call calc_gradient(Yspec,gradY)    
-     
-     !! Measure relative lengthscales...
-     allocate(lapy(npfb));lapy=zero
-     call calc_laplacian(Yspec,lapY)
-     write(6,*) itime,one/sqrt(h0*h0*maxval(abs(lapY(1:npfb))))
+     call calc_gradient(Yspec,gradY)     
      
             
      !$omp parallel do private(x,y,dYdy,dYdx,absgradY,j,k &
@@ -153,7 +182,8 @@ contains
         !! Lagrangian
         utran(i,1) = u(i)
         utran(i,2) = v(i)
-        
+
+
         utran(i,1) = utran(i,1) + (minval(h(1:npfb))/dt)*swarm_rate*h0*dYdx
         utran(i,2) = utran(i,2) + (minval(h(1:npfb))/dt)*swarm_rate*h0*dYdy
 
@@ -174,14 +204,17 @@ contains
         !! Add a small shifting term
         qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+(4.0d0*Yspec(i)*(one-Yspec(i)))**alpha)
 #if cyl==1
+!LAG
+!    qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.4d0
+        
         x=rp(i,1);y=rp(i,2);rad=sqrt(x*x+y*y)
-        qq = half*(tanh((rad-cyl_radius)/0.04) +one)
+        qq = half*(tanh((rad-cyl_radius)/(dltah0*h0)) +one)
         htmp = max((4.0d0*qq*(one-qq))**alpha,(4.0d0*Yspec(i)*(one-Yspec(i)))**alpha)        
         qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+htmp)                        
 #endif
 #if line==1
         x=rp(i,1);
-        qq = half*(tanh(x/0.04)+one)
+        qq = half*(tanh(x/(dltah0*h0))+one)
         htmp = (4.0d0*qq*(one-qq))**alpha
         qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+htmp)                                
 #endif        
@@ -218,9 +251,9 @@ contains
   subroutine set_initial_fields
      integer(ikind) :: i,j
      real(rkind) :: x,y,ftn,y0,dlta,eta,rr
+     real(rkind) :: ur,uth,th
 
      time = zero
-     time_end = 1.0d2
      itime = 0
      
      dlta = 0.04d0         
@@ -248,9 +281,18 @@ contains
     
         u(i) = zero
         v(i) = zero
-        Yspec(i) = ftn 
-        ro(i) = one - Ma*Ma*dlta*log(cosh((y-y0+eta)/dlta))
-
+        Yspec(i) = zero!ftn 
+        ro(i) = one! - Ma*Ma*dlta*log(cosh((y-y0+eta)/dlta))
+        
+        th = acos(x/rr) !! theta coordinate
+        ur = (one - (cyl_radius/rr)**two)*cos(th)
+        uth = -(one + (cyl_radius/rr)**two)*sin(th)
+        
+        !! Potential flow past cylinder - just to speed up initial transients
+!        u(i) = ur*cos(th) - uth*sin(th)
+!        v(i) = ur*sin(th) + uth*cos(th)        
+!        ro(i) = one + Ma*Ma*(cos(two*th)*(cyl_radius/rr)**two - half*(cyl_radius/rr)**4.0d0)
+        
 
         !! Taylor Green vortex initial conditions
 !        u(i) = -cos(2.0*pi*x)*sin(2.0*pi*y)!*cos(z)!*oosqrt2
@@ -273,21 +315,10 @@ contains
      integer(ikind) :: i
      real(rkind) :: dro
 
-     if(ybcond.eq.2) then
-     do i=npfb+1,np
-        if(rp(i,2).gt.ymax) then
-           Yspec(i) = zero
-        end if
-        if(rp(i,2).lt.ymin) then
-           Yspec(i) = one
-        end if
-        dro = four*Ma*Ma*(Yspec(i)-half)*(rp(i,2)-rp(irelation(i),2))                      
-        ro(i) = ro(irelation(i)) + dro
-        
-     end do
-     end if
+
      return
   end subroutine adjust_for_symmetry_bcs
+!! ------------------------------------------------------------------------------------------------
 !! ------------------------------------------------------------------------------------------------
   subroutine set_tstep
      integer(ikind) :: i
@@ -302,9 +333,9 @@ contains
      end do
      smin = minval(h(1:npfb))/hovdx
      
-     dt_visc = 0.5*smin*smin/momdiff_coeff
+     dt_visc = 0.2*smin*smin/momdiff_coeff
      dt_acou = 0.8*smin/(umax + c_ac)
-     dt_spec = 0.5*smin*smin/Ydiff_coeff
+     dt_spec = 0.2*smin*smin/Ydiff_coeff
      
      dt = min(dt_visc,min(dt_acou,dt_spec))            
        
@@ -376,19 +407,29 @@ contains
      call calc_gradient(u,gradu)
      call calc_gradient(v,gradv)
      call calc_gradient(Yspec,gradY)
-     call calc_gradient(ro,gradro)             
+     call calc_gradient(ro,gradro)      
+     
+            
+
+     !! Forcing::
+     !! Re=1, f=40.0d0*momdiff_coeff
+     !! Re=10, f= 41.5
+     !! Re=100, f= 49 ish
+     !! Re=1000, f= 84ish
 
 
      !$OMP PARALLEL DO 
      do i=1,npfb
         RHS_ro(i) = -ro(i)*(gradu(i,1)+gradv(i,2)) - u(i)*gradro(i,1) - v(i)*gradro(i,2) 
         RHS_u(i) = -u(i)*gradu(i,1) - v(i)*gradu(i,2) &
-                   - (ooMa2)*gradro(i,1) + momdiff_coeff*lapu(i) !+ 4.0d0*sin(4.0d0*pi*rp(i,2))
+                   - (ooMa2)*gradro(i,1) + momdiff_coeff*lapu(i) + 16.0d0*momdiff_coeff
         RHS_v(i) = -u(i)*gradv(i,1) - v(i)*gradv(i,2) &
-                   - (ooMa2)*gradro(i,2) + momdiff_coeff*lapv(i) + two*(Yspec(i)-half)
-        RHS_Y(i) = -u(i)*gradY(i,1) - v(i)*gradY(i,2) + Ydiff_coeff*lapY(i) + Da*4.0*Yspec(i)*(one-Yspec(i))
+                   - (ooMa2)*gradro(i,2) + momdiff_coeff*lapv(i) !+ two*(Yspec(i)-half)
+        RHS_Y(i) = zero!-u(i)*gradY(i,1) - v(i)*gradY(i,2) + Ydiff_coeff*lapY(i) + Da*4.0*Yspec(i)*(one-Yspec(i))
         
-        
+        !! Calculate vorticity...
+        vort(i) = gradv(i,1)-gradu(i,2)
+        w(i) = vort(i)
      end do
      !$OMP END PARALLEL DO
      
@@ -399,7 +440,7 @@ contains
            RHS_ro(i) = RHS_ro(i) + utran(i,1)*gradro(i,1) + utran(i,2)*gradro(i,2)
            RHS_u(i) = RHS_u(i) + utran(i,1)*gradu(i,1) + utran(i,2)*gradu(i,2)
            RHS_v(i) = RHS_v(i) + utran(i,1)*gradv(i,1) + utran(i,2)*gradv(i,2)
-           RHS_Y(i) = RHS_Y(i) + utran(i,1)*gradY(i,1) + utran(i,2)*gradY(i,2)
+           RHS_Y(i) = zero!RHS_Y(i) + utran(i,1)*gradY(i,1) + utran(i,2)*gradY(i,2)
         end do
         !$omp end parallel do
      end if
@@ -544,7 +585,10 @@ contains
      deallocate(rp_reg1)
 #endif         
      
-     call rebuild_particle_maps_etc       
+     call rebuild_particle_maps_etc   
+     
+     call correct_mass
+         
      call reapply_mirror_bcs
      call adjust_for_symmetry_bcs     
               
@@ -552,10 +596,90 @@ contains
 !     call calc_filtered_var(ro)
 !     call calc_filtered_var(u)
 !     call calc_filtered_var(v)
-!     call calc_filtered_var(Yspec)
+!!     call calc_filtered_var(Yspec)
 !     call reapply_mirror_bcs
 !     call adjust_for_symmetry_bcs           
   
      return
   end subroutine step_RK3
-end module ns_equations
+!! ------------------------------------------------------------------------------------------------ 
+  subroutine correct_mass
+     integer(ikind) :: i
+     real(rkind) :: tm,tv,vol_local,dro
+     !! Calculate average density deviation (from rho_char)
+     tm = zero;tv = zero
+     
+     
+     
+     !$omp parallel do private(vol_local) reduction(+:tm,tv)
+     do i=1,npfb
+        vol_local = h(i)*h(i)/(hovdx*hovdx)  !! Local particle volume
+        tm = tm + (ro(i)-one)*vol_local  !! N.B. there is no need to scale to make dimensional
+        tv = tv + vol_local
+     end do
+     !$omp end parallel do         
+     dro = tm/tv   
+     
+     !! Adjust density uniformly
+     do i=1,npfb
+        ro(i) = ro(i) - dro
+     end do
+
+     return
+  end subroutine correct_mass
+!! ------------------------------------------------------------------------------------------------
+  subroutine output_slices
+     !! Interpolate properties at 3 vertical slices
+     integer(ikind),parameter :: nsy=100
+     integer(ikind) i,j,k,jlow,jhigh
+     real(rkind),dimension(nsy) :: Sy,uy,vy,vorty
+     real(rkind) :: dy,Sx,dst,qq,waq
+
+     !! Position of slice in X
+     Sx = 0.375
+
+     dy = one/dble(nsy)
+     do i=1,nsy
+        Sy(i) = -half + half*dy + dble(i-1)*dy
+     end do
+     
+     uy=zero
+     vy=zero
+     vorty=zero
+     
+     !! N.B. larger h/s for interpolation
+     
+     do i=1,np  !! Loop all particles
+        if(abs(rp(i,1)-Sx).gt.two*two*h(i)) cycle !! Skip particles not near transect
+        jlow = floor((rp(i,2)-two*two*h(i)-half*dy+half)/dy + one)
+        jhigh = floor((rp(i,2)+two*two*h(i)-half*dy+half)/dy + one) + 1 
+        jlow = max(jlow,1)
+        jhigh = min(jhigh,nsy) 
+
+        !! Loop over nearby elements in slice and add contribution
+        do j=jlow,jhigh
+                
+           dst = sqrt((rp(i,2)-Sy(j))**two + (rp(i,1)-Sx)**two)
+
+           if(dst/(two*h(i)).le.two)then 
+              qq=dst/(two*h(i))
+              waq = wab(qq)/(two*two*hovdx*hovdx)
+              uy(j) = uy(j) + waq*u(i)
+              vy(j) = vy(j) + waq*v(i)              
+           endif                   
+        end do
+     end do
+     
+
+     
+     
+
+     do i=1,nsy
+        write(219,*) Sy(i),uy(i),vy(i)
+     end do
+     flush(219)
+     
+     return
+  end subroutine output_slices
+!! ------------------------------------------------------------------------------------------------   
+end module ns_equations_cylinder

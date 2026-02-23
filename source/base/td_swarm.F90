@@ -1,4 +1,4 @@
-module ns_equations
+module td_swarm
   use kind_parameters
   use common_parameter
   use common_2d
@@ -9,8 +9,10 @@ module ns_equations
   implicit none
   
   private
-  public :: solve_ns_equations
+  public :: solve_td_swarm
   
+#define tdale
+
   !! Solve Navier-Stokes equations in weakly-compressible form.
   !! Currently only suitable for periodic domains
   
@@ -20,7 +22,7 @@ module ns_equations
   real(rkind),parameter :: Ra = 1.0d6
   real(rkind),parameter :: Pr = 1.0d0
   real(rkind),parameter :: output_period=0.01d0
-  real(rkind),parameter :: Da = 1.0d0
+  real(rkind),parameter :: Da = 0.2d0
   
   real(rkind),parameter :: ooMa2 = one/Ma/Ma
   real(rkind),parameter :: momdiff_coeff = sqrt(Pr/Ra)
@@ -32,10 +34,9 @@ module ns_equations
   
   real(rkind),dimension(:,:),allocatable :: utran
   integer(ikind),parameter :: move_every_nsteps=1
-  real(rkind),parameter :: alpha=0.5d0  !! Narrowness parameter for mapping Y->Z  
 
 contains
-  subroutine solve_ns_equations
+  subroutine solve_td_swarm
      integer(ikind) :: i,j,k,n_out
      real(rkind) :: tmp,x,y
      real(rkind) :: l2_tmp,l2v_tmp,vol_local
@@ -86,7 +87,7 @@ contains
 
       
      stop
-  end subroutine solve_ns_equations
+  end subroutine solve_td_swarm
 !! ------------------------------------------------------------------------------------------------
   subroutine update_utran    
      integer(ikind) :: i,j,k
@@ -94,32 +95,13 @@ contains
      real(rkind) :: qkd_mag,rad,qq
      real(rkind),dimension(dims) :: dstmp,rij,gradkernel
      real(rkind),dimension(:,:),allocatable :: gradE,gradY
-     real(rkind),dimension(:),allocatable :: lapY
      real(rkind),parameter :: swarm_rate = dble(move_every_nsteps)*one
      real(rkind) :: max_vel,norm_gradY
 
      !! Set E=(4Y(1-Y))**(1/4)
      max_vel = zero
      do i=1,np
-        
-    
-       
-        E(i) = (4.0d0*Yspec(i)*(one-Yspec(i)))**alpha
-
-#if cyl==1
-        !! Hard-code a small highly resolved clump...
-        x=rp(i,1);y=rp(i,2);rad=sqrt(x*x+y*y)
-        qq = half*(tanh((rad-cyl_radius)/0.04) +one)
-        htmp = (4.0d0*qq*(one-qq))**alpha
-        E(i) = max(E(i),htmp)
-#endif      
-#if line==1
-        x=rp(i,1);
-        qq = half*(tanh(x/0.04)+one)
-        htmp = (4.0d0*qq*(one-qq))**alpha
-        E(i) = max(E(i),htmp)  
-#endif    
-        
+        E(i) = (4.0d0*Yspec(i)*(one-Yspec(i)))**0.25d0
         max_vel = max(max_vel,u(i)*u(i) + v(i)*v(i))
      end do
      max_vel = sqrt(max_vel)
@@ -130,12 +112,7 @@ contains
      
      !! Calculate the gradient of Y
      allocate(gradY(npfb,dims));gradY=zero
-     call calc_gradient(Yspec,gradY)    
-     
-     !! Measure relative lengthscales...
-     allocate(lapy(npfb));lapy=zero
-     call calc_laplacian(Yspec,lapY)
-     write(6,*) itime,one/sqrt(h0*h0*maxval(abs(lapY(1:npfb))))
+     call calc_gradient(Yspec,gradY)     
      
             
      !$omp parallel do private(x,y,dYdy,dYdx,absgradY,j,k &
@@ -158,10 +135,10 @@ contains
         utran(i,2) = utran(i,2) + (minval(h(1:npfb))/dt)*swarm_rate*h0*dYdy
 
         !! Normalised gradient of resolution
-        !norm_gradY = h0*sqrt(gradY(i,1)**two + gradY(i,2)**two)        
+        norm_gradY = h0*sqrt(gradY(i,1)**two + gradY(i,2)**two)        
+        E(i) = (4.0d0*Yspec(i)*(one-Yspec(i)))**0.25d0!norm_gradY
 
         !! Dynamically evolve smoothing length to satisfy partition of unity
-#if ale==1
         htmp = zero
         do k=1,ij_count(i)
            j=ij_link(i,k)
@@ -170,21 +147,10 @@ contains
         end do
         qq = one - 0.01d0*(htmp - one)
         h(i) = min(max(0.1d0*h0,qq*h(i)),2.0d0*h0)  !! h relaxes towards PARTITION OF UNITY, with some upper/lower bounds
-#endif   
+   
         !! Add a small shifting term
-        qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+(4.0d0*Yspec(i)*(one-Yspec(i)))**alpha)
-#if cyl==1
-        x=rp(i,1);y=rp(i,2);rad=sqrt(x*x+y*y)
-        qq = half*(tanh((rad-cyl_radius)/0.04) +one)
-        htmp = max((4.0d0*qq*(one-qq))**alpha,(4.0d0*Yspec(i)*(one-Yspec(i)))**alpha)        
-        qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+htmp)                        
-#endif
-#if line==1
-        x=rp(i,1);
-        qq = half*(tanh(x/0.04)+one)
-        htmp = (4.0d0*qq*(one-qq))**alpha
-        qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+htmp)                                
-#endif        
+!        qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*(0.2d0+two*norm_gradY)
+        qkd_mag = (minval(h(1:npfb))/dt)*swarm_rate*0.2d0*(one+(4.0d0*Yspec(i)*(one-Yspec(i)))**0.25d0)        
         dstmp = zero
         do k=1,ij_count(i)
            j=ij_link(i,k)
@@ -244,12 +210,18 @@ contains
         do j=1,ncoef
            eta = eta + 0.005*sin( two*dble(j)*pi*x + Yphase_coef(j))!*Ymag_coef(j)
         end do
+!eta=zero
+        ftn = -half*(tanh((y-y0+eta)/dlta)-tanh((y+y0+eta)/dlta))
         ftn = -half*(tanh((y-y0+eta)/dlta)-one)        
+    
+!        ftn = -half*(tanh((rr-0.2d0)/dlta)-tanh((rr+0.2d0)/dlta))
+           
+    
     
         u(i) = zero
         v(i) = zero
         Yspec(i) = ftn 
-        ro(i) = one - Ma*Ma*dlta*log(cosh((y-y0+eta)/dlta))
+        ro(i) = one - two*Ma*Ma*(y0-y)*(Yspec(i)-half)*two
 
 
         !! Taylor Green vortex initial conditions
@@ -315,7 +287,7 @@ contains
      use nodes
      use neighbours
      use moments
-#if ale==1
+#ifdef tdale
      integer(ikind) :: i,j
      
      if(mod(itime,move_every_nsteps).eq.0) then     
@@ -392,7 +364,7 @@ contains
      end do
      !$OMP END PARALLEL DO
      
-#if ale==1     
+#ifdef tdale     
      if(mod(itime,move_every_nsteps).eq.0) then
         !$omp parallel do
         do i=1,npfb
@@ -428,7 +400,7 @@ contains
      real(rkind),dimension(:),allocatable :: Y_reg1
      real(rkind),dimension(3) :: RKa
      real(rkind),dimension(4) :: RKb,RKc
-#if ale==1
+#ifdef tdale
      real(rkind),dimension(:,:),allocatable :: rp_reg1
      allocate(rp_reg1(npfb,2))
 #endif     
@@ -448,7 +420,7 @@ contains
      do i=1,npfb
         ro_reg1(i)=ro(i);u_reg1(i)=u(i);v_reg1(i)=v(i)
         Y_reg1(i) = Yspec(i)
-#if ale==1
+#ifdef tdale
         rp_reg1(i,:) = rp(i,:)
 #endif        
      end do
@@ -467,7 +439,7 @@ contains
         call calc_all_rhs
         
         
-#if ale==1
+#ifdef tdale
         if(mod(itime,move_every_nsteps).eq.0) then
            !$omp parallel do
            do i=1,npfb
@@ -514,7 +486,7 @@ contains
      call calc_all_rhs  
 
 
-#if ale==1
+#ifdef tdale
         if(mod(itime,move_every_nsteps).eq.0) then
            !$omp parallel do
            do i=1,npfb
@@ -540,7 +512,7 @@ contains
      !! Deallocation
      deallocate(u_reg1,v_reg1,ro_reg1,Y_reg1)
      deallocate(rhs_u,rhs_v,rhs_ro,rhs_Y) 
-#if ale==1
+#ifdef tdale
      deallocate(rp_reg1)
 #endif         
      
@@ -558,4 +530,4 @@ contains
   
      return
   end subroutine step_RK3
-end module ns_equations
+end module td_swarm
