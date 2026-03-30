@@ -21,7 +21,7 @@ module ns_equations_cylinder
   real(rkind),parameter :: Ma=0.1d0
   real(rkind),parameter :: Ra = 1.0d2
   real(rkind),parameter :: Pr = 1.0d0
-  real(rkind),parameter :: output_period=0.01d0
+  real(rkind),parameter :: output_period=0.1d0
   real(rkind),parameter :: Da = 1.0d0
   
   real(rkind),parameter :: ooMa2 = one/Ma/Ma
@@ -87,7 +87,8 @@ contains
           write(212,*) itime,time,dt,l2_tmp,meanu,meanv,tot_vol
           flush(212)
 
-          if(time.gt.4.0d0) then
+          !! Output some particle trajectories...
+          if(time.gt.4.0d10) then
              write(313,*) rp(1:npfb,1)
              write(314,*) rp(1:npfb,2)
              write(315,*) h(1:npfb)

@@ -19,8 +19,8 @@ module ns_equations
   real(rkind),parameter :: Ma=0.1d0
   real(rkind),parameter :: Ra = 1.0d6
   real(rkind),parameter :: Pr = 1.0d0
-  real(rkind),parameter :: output_period=0.01d0
-  real(rkind),parameter :: Da = 1.0d0
+  real(rkind),parameter :: output_period=0.1d0
+  real(rkind),parameter :: Da = 0.0d0
   
   real(rkind),parameter :: ooMa2 = one/Ma/Ma
   real(rkind),parameter :: momdiff_coeff = sqrt(Pr/Ra)
@@ -32,7 +32,7 @@ module ns_equations
   
   real(rkind),dimension(:,:),allocatable :: utran
   integer(ikind),parameter :: move_every_nsteps=1
-  real(rkind),parameter :: alpha=0.5d0  !! Narrowness parameter for mapping Y->Z  
+  real(rkind),parameter :: alpha=0.25d0  !! Narrowness parameter for mapping Y->Z  
 
 contains
   subroutine solve_ns_equations
@@ -76,6 +76,11 @@ contains
         l2_tmp = half*l2_tmp/l2v_tmp                 !! Volume averaged K.E.
         write(212,*) itime,time,dt,l2_tmp,l2v_tmp    !! Total volume
         flush(212)
+        
+        !! Output some velocity profiles
+        if(time.gt.2.0d0.and.time-dt.le.2.0d0) then
+           call output_slices        
+        endif
  
      end do
    
@@ -135,7 +140,7 @@ contains
      !! Measure relative lengthscales...
      allocate(lapy(npfb));lapy=zero
      call calc_laplacian(Yspec,lapY)
-     write(6,*) itime,one/sqrt(h0*h0*maxval(abs(lapY(1:npfb))))
+!     write(6,*) itime,one/sqrt(h0*h0*maxval(abs(lapY(1:npfb))))
      
             
      !$omp parallel do private(x,y,dYdy,dYdx,absgradY,j,k &
@@ -228,8 +233,11 @@ contains
      !! Initialise coefficients     
      do i=1,ncoef
         Ymag_coef(i) = rand()
-        Yphase_coef(i) = two*pi*rand()
+        Yphase_coef(i) = two*pi*rand()        
      end do     
+     !! Single-mode perturbation
+     Ymag_coef(:)=0.0d0;Ymag_coef(1)=1.0d0
+     Yphase_coef(:)=pi/two
 
      
     
@@ -239,10 +247,10 @@ contains
         rr = sqrt(x*x+y*y)
      
         !! Multi-mode perturbation
-        y0 = ymin + 0.4*(ymax-ymin)
+        y0 = ymin + 0.5*(ymax-ymin)
         eta = zero
         do j=1,ncoef
-           eta = eta + 0.005*sin( two*dble(j)*pi*x + Yphase_coef(j))!*Ymag_coef(j)
+           eta = eta + 0.01*sin( two*dble(j)*pi*x + Yphase_coef(j))*Ymag_coef(j)
         end do
         ftn = -half*(tanh((y-y0+eta)/dlta)-one)        
     
@@ -303,7 +311,7 @@ contains
      smin = minval(h(1:npfb))/hovdx
      
      dt_visc = 0.5*smin*smin/momdiff_coeff
-     dt_acou = 0.8*smin/(umax + c_ac)
+     dt_acou = 0.5*smin/(umax + c_ac)
      dt_spec = 0.5*smin*smin/Ydiff_coeff
      
      dt = min(dt_visc,min(dt_acou,dt_spec))            
@@ -360,18 +368,19 @@ contains
 !! ------------------------------------------------------------------------------------------------
   subroutine calc_all_rhs
      integer(ikind) :: i
-     real(rkind),dimension(:),allocatable :: lapu,lapv,lapY
+     real(rkind),dimension(:),allocatable :: lapu,lapv,lapY,lapro
      real(rkind),dimension(:,:),allocatable :: gradu,gradv,gradY,gradro
      
      
      !! Space for derivatives
-     allocate(lapu(npfb),lapv(npfb),lapY(npfb))
+     allocate(lapu(npfb),lapv(npfb),lapY(npfb),lapro(npfb))
      allocate(gradu(npfb,dims),gradv(npfb,dims),gradY(npfb,dims),gradro(npfb,dims))
      
      !! Evaluate derivatives
      call calc_laplacian(u,lapu)
      call calc_laplacian(v,lapv)
      call calc_laplacian(Yspec,lapY)          
+     call calc_laplacian(ro,lapro)          
 
      call calc_gradient(u,gradu)
      call calc_gradient(v,gradv)
@@ -381,7 +390,7 @@ contains
 
      !$OMP PARALLEL DO 
      do i=1,npfb
-        RHS_ro(i) = -ro(i)*(gradu(i,1)+gradv(i,2)) - u(i)*gradro(i,1) - v(i)*gradro(i,2) 
+        RHS_ro(i) = -ro(i)*(gradu(i,1)+gradv(i,2)) - u(i)*gradro(i,1) - v(i)*gradro(i,2) + 1.0d-3*lapro(i)
         RHS_u(i) = -u(i)*gradu(i,1) - v(i)*gradu(i,2) &
                    - (ooMa2)*gradro(i,1) + momdiff_coeff*lapu(i) !+ 4.0d0*sin(4.0d0*pi*rp(i,2))
         RHS_v(i) = -u(i)*gradv(i,1) - v(i)*gradv(i,2) &
@@ -543,11 +552,14 @@ contains
 #if ale==1
      deallocate(rp_reg1)
 #endif         
+
+     call rebuild_particle_maps_etc   
      
-     call rebuild_particle_maps_etc       
+!     call correct_mass
+         
      call reapply_mirror_bcs
-     call adjust_for_symmetry_bcs     
-              
+     call adjust_for_symmetry_bcs   
+                  
      !! Filter the solution 
 !     call calc_filtered_var(ro)
 !     call calc_filtered_var(u)
@@ -558,4 +570,301 @@ contains
   
      return
   end subroutine step_RK3
+!! ------------------------------------------------------------------------------------------------ 
+  subroutine correct_mass
+     integer(ikind) :: i
+     real(rkind) :: tm,tv,vol_local,dro
+     !! Calculate average density deviation (from rho_char)
+     tm = zero;tv = zero
+     
+     
+     
+     !$omp parallel do private(vol_local) reduction(+:tm,tv)
+     do i=1,npfb
+        vol_local = h(i)*h(i)/(hovdx*hovdx)  !! Local particle volume
+        tm = tm + (ro(i)-one)*vol_local  !! N.B. there is no need to scale to make dimensional
+        tv = tv + vol_local
+     end do
+     !$omp end parallel do         
+     dro = tm/tv   
+     
+     !! Adjust density uniformly
+     do i=1,npfb
+        ro(i) = ro(i) - dro
+     end do
+
+     return
+  end subroutine correct_mass  
+!! ------------------------------------------------------------------------------------------------  
+  subroutine output_slices
+     use svd_lib  
+     !! Interpolate properties at slices.
+     !! Currently only for vertical and horizontal slices
+     integer(ikind),parameter :: nsy=200
+     integer(ikind) i,j,k,jlow,jhigh,i0,l0,l1
+     real(rkind),dimension(nsy) :: Sy,uslice,vslice,vorty,Yslice
+     real(rkind),dimension(15) :: cvec,xvec
+     real(rkind),dimension(15,15) :: Amat
+     real(rkind) :: dy,dst,qq,waq,rmax,x,y,rdist,rad,Sx,hslice
+     integer(ikind),dimension(nsy):: slice_ncount
+     integer(ikind),dimension(nsy,200) :: slice_nlist
+
+     !! Vertical slice at X=0 =============================================================
+     open(unit=219,file='slice_y.out')
+     !! Position of slice in X
+     Sx = 0.0
+
+     dy = (ymax-ymin)/dble(nsy)
+     hslice = 1.3*h0
+     do i=1,nsy
+        Sy(i) = -half*(ymax-ymin) + half*dy + dble(i-1)*dy
+     end do
+     
+     uslice=zero
+     vslice=zero
+     Yslice=zero
+     
+     slice_ncount=0
+     slice_nlist=0
+     
+     do i=1,np  !! Loop all particles
+        rmax = 3.0d0*h0
+        rdist = abs(rp(i,1)-Sx)
+        if(rdist.gt.rmax) cycle !! Skip particles not near transect
+        jlow = floor((rp(i,2)-rmax-half*dy+half*(ymax-ymin))/dy + one)
+        jhigh = floor((rp(i,2)+rmax-half*dy+half*(ymax-ymin))/dy + one) + 1 
+        jlow = max(jlow,1)
+        jhigh = min(jhigh,nsy) 
+
+        !! Loop over nearby elements in slice and add contribution
+        do j=jlow,jhigh
+
+           slice_ncount(j) = slice_ncount(j) + 1
+           slice_nlist(j,slice_ncount(j)) = i                          
+        end do
+     end do
+     
+     !! Loop over slice points
+     do i=1,nsy
+
+        !! Loop to build matrix
+        Amat = 0.0d0
+        do i0=1,slice_ncount(i)
+           k=slice_nlist(i,i0)
+                   
+           
+           x= rp(k,1)-Sx
+           y= rp(k,2)-Sy(i)
+           rad = sqrt(x*x + y*y)
+           qq = rad/hslice
+           
+           !! Taylor monomials - we will just use Taylor monomials as basis functions too...
+           xvec(1) = 1.0d0
+           xvec(2) = x
+           xvec(3) = y
+           xvec(4) = x*x/2.0d0
+           xvec(5) = x*y
+           xvec(6) = y*y/2.0d0
+           xvec(7) = x*x*x/6.0d0
+           xvec(8) = x*x*y/2.0d0
+           xvec(9) = x*y*y/2.0d0
+           xvec(10) = y*y*y/6.0d0
+           xvec(11) = x*x*x*x/24.0d0
+           xvec(12) = x*x*x*y/6.0d0
+           xvec(13) = x*x*y*y/4.0d0
+           xvec(14) = x*y*y*y/6.0d0
+           xvec(15) = y*y*y*y/24.0d0
+           waq = 0.0d0
+           if(qq.le.2.0d0.and.qq.gt.0.0d0)then
+              waq = (7.0/(4.0*pi*hslice**2.0d0))*(2.0*qq + 1.0)*(1.0-0.5d0*qq)**4.0d0
+           end if           
+           
+           do l0=1,15
+              do l1 = 1,15
+                 Amat(l0,l1) = Amat(l0,l1) + xvec(l0)*xvec(l1)*waq
+              end do
+           end do                             
+     
+        end do           
+
+        !! Solve the matrix
+        cvec = 0.0d0
+        cvec(1) = 1.0d0        
+        call svd_solve(amat,15,cvec)                
+
+        !! Another loop, and this time we do interpolation...
+        do i0=1,slice_ncount(i)
+           k=slice_nlist(i,i0)
+           
+           x= rp(k,1)-Sx
+           y= rp(k,2)-Sy(i)
+           rad = sqrt(x*x + y*y)
+           qq = rad/hslice
+           
+           !! Taylor monomials - we will just use Taylor monomials as basis functions too...
+           xvec(1) = 1.0d0
+           xvec(2) = x
+           xvec(3) = y
+           xvec(4) = x*x/2.0d0
+           xvec(5) = x*y
+           xvec(6) = y*y/2.0d0
+           xvec(7) = x*x*x/6.0d0
+           xvec(8) = x*x*y/2.0d0
+           xvec(9) = x*y*y/2.0d0
+           xvec(10) = y*y*y/6.0d0
+           xvec(11) = x*x*x*x/24.0d0
+           xvec(12) = x*x*x*y/6.0d0
+           xvec(13) = x*x*y*y/4.0d0
+           xvec(14) = x*y*y*y/6.0d0
+           xvec(15) = y*y*y*y/24.0d0
+           waq = 0.0d0
+           if(qq.le.2.0d0.and.qq.gt.0.0d0)then
+              waq = (7.0/(4.0*pi*hslice**2.0d0))*(2.0*qq + 1.0)*(1.0-0.5d0*qq)**4.0d0
+           end if           
+           
+           waq = waq*dot_product(xvec,cvec)
+           
+           uslice(i) = uslice(i) + waq*u(k)
+           vslice(i) = vslice(i) + waq*v(k)
+           Yslice(i) = Yslice(i) + waq*Yspec(k)
+        end do         
+     end do                      
+
+     do i=1,nsy
+        write(219,*) Sy(i),uslice(i),vslice(i),Yslice(i)
+     end do
+     flush(219)
+     close(219)
+     
+     !! Horizontal slice at Y=0 =============================================================
+     !! Note, for quick implementation, Sx = Sy and vice versa...
+     open(unit=219,file='slice_x.out')
+     !! Position of slice in Y
+     Sx = 0.0
+
+     dy = one/dble(nsy)
+     hslice = 1.3*h0
+     do i=1,nsy
+        Sy(i) = -half + half*dy + dble(i-1)*dy
+     end do
+     
+     uslice=zero
+     vslice=zero
+     Yslice=zero
+     
+     slice_ncount=0
+     slice_nlist=0
+     
+     do i=1,np  !! Loop all particles
+        rmax = 3.0d0*h0
+        rdist = abs(rp(i,2)-Sx)
+        if(rdist.gt.rmax) cycle !! Skip particles not near transect
+        jlow = floor((rp(i,1)-rmax-half*dy+half)/dy + one)
+        jhigh = floor((rp(i,1)+rmax-half*dy+half)/dy + one) + 1 
+        jlow = max(jlow,1)
+        jhigh = min(jhigh,nsy) 
+
+        !! Loop over nearby elements in slice and add contribution
+        do j=jlow,jhigh
+
+           slice_ncount(j) = slice_ncount(j) + 1
+           slice_nlist(j,slice_ncount(j)) = i                          
+        end do
+     end do
+     
+     !! Loop over slice points
+     do i=1,nsy
+
+        !! Loop to build matrix
+        Amat = 0.0d0
+        do i0=1,slice_ncount(i)
+           k=slice_nlist(i,i0)
+                   
+           
+           x= rp(k,1)-Sy(i)
+           y= rp(k,2)-Sx
+           rad = sqrt(x*x + y*y)
+           qq = rad/hslice
+           
+           !! Taylor monomials - we will just use Taylor monomials as basis functions too...
+           xvec(1) = 1.0d0
+           xvec(2) = x
+           xvec(3) = y
+           xvec(4) = x*x/2.0d0
+           xvec(5) = x*y
+           xvec(6) = y*y/2.0d0
+           xvec(7) = x*x*x/6.0d0
+           xvec(8) = x*x*y/2.0d0
+           xvec(9) = x*y*y/2.0d0
+           xvec(10) = y*y*y/6.0d0
+           xvec(11) = x*x*x*x/24.0d0
+           xvec(12) = x*x*x*y/6.0d0
+           xvec(13) = x*x*y*y/4.0d0
+           xvec(14) = x*y*y*y/6.0d0
+           xvec(15) = y*y*y*y/24.0d0
+           waq = 0.0d0
+           if(qq.le.2.0d0.and.qq.gt.0.0d0)then
+              waq = (7.0/(4.0*pi*hslice**2.0d0))*(2.0*qq + 1.0)*(1.0-0.5d0*qq)**4.0d0
+           end if           
+           
+           do l0=1,15
+              do l1 = 1,15
+                 Amat(l0,l1) = Amat(l0,l1) + xvec(l0)*xvec(l1)*waq
+              end do
+           end do                             
+     
+        end do           
+
+        !! Solve the matrix
+        cvec = 0.0d0
+        cvec(1) = 1.0d0        
+        call svd_solve(amat,15,cvec)                
+
+        !! Another loop, and this time we do interpolation...
+        do i0=1,slice_ncount(i)
+           k=slice_nlist(i,i0)
+           
+           x= rp(k,1)-Sy(i)
+           y= rp(k,2)-Sx
+           rad = sqrt(x*x + y*y)
+           qq = rad/hslice
+           
+           !! Taylor monomials - we will just use Taylor monomials as basis functions too...
+           xvec(1) = 1.0d0
+           xvec(2) = x
+           xvec(3) = y
+           xvec(4) = x*x/2.0d0
+           xvec(5) = x*y
+           xvec(6) = y*y/2.0d0
+           xvec(7) = x*x*x/6.0d0
+           xvec(8) = x*x*y/2.0d0
+           xvec(9) = x*y*y/2.0d0
+           xvec(10) = y*y*y/6.0d0
+           xvec(11) = x*x*x*x/24.0d0
+           xvec(12) = x*x*x*y/6.0d0
+           xvec(13) = x*x*y*y/4.0d0
+           xvec(14) = x*y*y*y/6.0d0
+           xvec(15) = y*y*y*y/24.0d0
+           waq = 0.0d0
+           if(qq.le.2.0d0.and.qq.gt.0.0d0)then
+              waq = (7.0/(4.0*pi*hslice**2.0d0))*(2.0*qq + 1.0)*(1.0-0.5d0*qq)**4.0d0
+           end if           
+           
+           waq = waq*dot_product(xvec,cvec)
+           
+           uslice(i) = uslice(i) + waq*u(k)
+           vslice(i) = vslice(i) + waq*v(k)
+           Yslice(i) = Yslice(i) + waq*Yspec(k)
+        end do         
+     end do                      
+
+     do i=1,nsy
+        write(219,*) Sy(i),uslice(i),vslice(i),Yslice(i)
+     end do
+     flush(219)
+     close(219)
+          
+
+     return
+  end subroutine output_slices  
 end module ns_equations

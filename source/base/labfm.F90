@@ -20,14 +20,14 @@ program labfm
   call initial_setup
 
   !! Loop over a range of resolutions
-  nx = 20!! 1/2 the initial resolution
+  nx = 30!! 1/2 the initial resolution
   do k=1,10
        !! Create the particles and give initial values
      nx = nx*2  !! Increase the resolution by a factor of 2 each time...
 
 !     call create_particles_banalytic
-     call create_particles_bperiodic
-!     call create_particles_RT     
+!     call create_particles_bperiodic
+     call create_particles_RT     
 !     call create_particles_bperiodic_varh
 
      !! Build the neighbour lists
@@ -53,8 +53,8 @@ program labfm
 !     call vortex_resolve_test
 !     call stability_test
 !     call solve_burgers_equation
-!     call solve_ns_equations
-     call solve_ns_equations_cylinder
+     call solve_ns_equations  !! Rayeigh taylor flame
+!     call solve_ns_equations_cylinder
 !     call solve_ns_equations_tg
 !     call swarm_test
 
