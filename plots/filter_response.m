@@ -6,10 +6,11 @@ figure(1)
 %%{
 x=0.001:0.001:1;
 y=1.0.-x.**8;
+z=0.5-0.5*tanh(10000.*(x-2/3));
 %}
 
 
-plot(A(:,1),A(:,2),'r.',x,y,'k-')
+plot(A(:,1),A(:,2),'r.',x,y,'k-','linewidth',1,x,z,'k--','linewidth',1)
 
 set(gca,'Fontsize',18)
 set(gca,'Fontname','Times')

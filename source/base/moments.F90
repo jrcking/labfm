@@ -8,7 +8,7 @@ module moments
   implicit none
 !! Choice of ABF type:: 1=original, 2=Hermite polynomials, 3=Legendre, 4=Laguerre, 5 = Taylor monomials
 !! ABFs 2, 3 and 4 are multiplied by an RBF (Wab(qq) set in sphtools).
-#define ABF 6
+#define ABF 2
 
 contains
 !! ------------------------------------------------------------------------------------------------
@@ -600,7 +600,7 @@ contains
         !! Set the filter coefficient
         filter_coeff(i) = (5.0d0/6.0d0)/lsum   !2/3
         
-        ij_w_hyp(i,:) = ij_w_hyp(i,:)*filter_coeff(i)
+!        ij_w_hyp(i,:) = ij_w_hyp(i,:)*filter_coeff(i)
      end do
      !$omp end parallel do
      
